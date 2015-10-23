@@ -262,10 +262,10 @@ namespace SiliconStudio.Paradox.Engine
 
         internal static void InitializeAssetDatabase()
         {
-            using (var profile = Profiler.Begin(GameProfilingKeys.ObjectDatabaseInitialize))
+            using (Profiler.Begin(GameProfilingKeys.ObjectDatabaseInitialize))
             {
                 // Create and mount database file system
-                var objDatabase = new ObjectDatabase("/data/db", "index", "/local/db");
+                var objDatabase = ObjectDatabase.CreateDefaultDatabase();
                 
                 // Only set a mount path if not mounted already
                 var mountPath = VirtualFileSystem.ResolveProviderUnsafe("/asset", true).Provider == null ? "/asset" : null;

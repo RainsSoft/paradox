@@ -50,6 +50,10 @@
     <Compile Include="..\..\shared\SharedAssemblyInfo.cs">
       <Link>Properties\SharedAssemblyInfo.cs</Link>
     </Compile>
+    <Compile Include="Animations\AnimationCurveEvaluatorDirectIntGroup.cs" />
+    <Compile Include="Animations\AnimationCurveEvaluatorDirectVector4Group.cs" />
+    <Compile Include="Animations\AnimationCurveEvaluatorOptimizedIntGroup.cs" />
+    <Compile Include="Animations\AnimationCurveEvaluatorOptimizedVector4Group.cs" />
     <Compile Include="Engine\ActivableEntityComponent.cs" />
     <Compile Include="Engine\AsyncScript.cs" />
     <Compile Include="Animations\AnimationBlendOperation.cs" />
@@ -120,6 +124,7 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>ToneMapHejl2OperatorShader.pdxsl</DependentUpon>
     </Compile>
+    <Compile Include="Rendering\Images\ColorTransforms\ToneMap\ToneMapKeys.cs" />
     <Compile Include="Rendering\Materials\ComputeColors\ColorVertexStreamDefinition.cs" />
     <Compile Include="Rendering\Materials\ComputeColors\ComputeVertexStreamBase.cs" />
     <Compile Include="Rendering\Materials\ComputeColors\ComputeVertexStreamColor.cs" />
@@ -2137,7 +2142,6 @@
     <Compile Include="Rendering\RenderModel.cs" />
     <Compile Include="Engine\Processors\ChildSceneComponentChangedEventArgs.cs" />
     <Compile Include="Engine\Processors\ChildSceneProcessor.cs" />
-    <Compile Include="Engine\Design\SceneEditorCameraSettings.cs" />
     <Compile Include="Engine\Design\SceneEditorGraphicsModeHDRSettings.cs" />
     <Compile Include="Engine\Design\SceneEditorGraphicsModeLDRSettings.cs" />
     <Compile Include="Engine\Design\SceneEditorGraphicsModeSettingsBase.cs" />

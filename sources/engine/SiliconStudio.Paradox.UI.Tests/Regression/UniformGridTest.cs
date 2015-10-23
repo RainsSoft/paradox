@@ -17,7 +17,7 @@ namespace SiliconStudio.Paradox.UI.Tests.Regression
     {
         public UniformGridTest()
         {
-            CurrentVersion = 5;
+            CurrentVersion = 8;
         }
 
         protected override void RegisterTests()

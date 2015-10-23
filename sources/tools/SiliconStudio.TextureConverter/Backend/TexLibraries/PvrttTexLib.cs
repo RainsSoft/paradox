@@ -760,9 +760,15 @@ namespace SiliconStudio.TextureConverter.TexLibraries
                 case SiliconStudio.Paradox.Graphics.PixelFormat.PVRTC_4bpp_RGBA:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.PVRTC_II_2bpp:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.PVRTC_II_4bpp:
+                case SiliconStudio.Paradox.Graphics.PixelFormat.PVRTC_2bpp_RGB_SRgb:
+                case SiliconStudio.Paradox.Graphics.PixelFormat.PVRTC_2bpp_RGBA_SRgb:
+                case SiliconStudio.Paradox.Graphics.PixelFormat.PVRTC_4bpp_RGB_SRgb:
+                case SiliconStudio.Paradox.Graphics.PixelFormat.PVRTC_4bpp_RGBA_SRgb:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.ETC1:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGB:
+                case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGB_SRgb:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGBA:
+                case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGBA_SRgb:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGB_A1:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.EAC_R11_Unsigned:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.EAC_R11_Signed:
@@ -803,6 +809,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
                 case SiliconStudio.Paradox.Graphics.PixelFormat.ETC1:
                     return 6;
                 case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGB:
+                case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGB_SRgb:
                     return 22;
                 case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGBA:
                 case SiliconStudio.Paradox.Graphics.PixelFormat.ETC2_RGBA_SRgb:

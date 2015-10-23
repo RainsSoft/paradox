@@ -21,7 +21,7 @@ namespace SiliconStudio.Paradox.Engine.Processors
         /// Initializes a new instance of the <see cref="SpriteProcessor"/> class.
         /// </summary>
         public UIComponentProcessor()
-            : base(new PropertyKey[] { UIComponent.Key, TransformComponent.Key })
+            : base(UIComponent.Key, TransformComponent.Key)
         {
             UIRoots = new List<UIComponentState>();
         }
@@ -33,6 +33,13 @@ namespace SiliconStudio.Paradox.Engine.Processors
                 UIComponent = entity.Get(UIComponent.Key),
                 TransformComponent = entity.Get(TransformComponent.Key),
             };
+        }
+
+        protected override bool IsAssociatedDataValid(Entity entity, UIComponentState associatedData)
+        {
+            return
+                entity.Get(UIComponent.Key) == associatedData.UIComponent &&
+                entity.Get(TransformComponent.Key) == associatedData.TransformComponent;
         }
 
         public override void Draw(RenderContext gameTime)

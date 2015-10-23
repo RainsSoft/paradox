@@ -26,6 +26,8 @@
     <SiliconStudioAssemblyProcessor Condition="'$(SiliconStudioAssemblyProcessor)' == ''">true</SiliconStudioAssemblyProcessor>
 
     <SiliconStudioPlatformFullName Condition="'$(SiliconStudioPlatformFullName)' == ''">$(SiliconStudioPlatform)-$(SiliconStudioParadoxGraphicsApi)</SiliconStudioPlatformFullName>
+
+    <SiliconStudioUserLibrariesPath Condition="'$(SiliconStudioCurrentPackagePath)' != ''">$([System.IO.Path]::GetDirectoryName($(SiliconStudioCurrentPackagePath)))\NativeLibs</SiliconStudioUserLibrariesPath>
   </PropertyGroup>
 
   <!-- 
@@ -94,6 +96,9 @@
         <Reference Include="SiliconStudio.Paradox.Physics">
           <HintPath>$(SiliconStudioPackageParadoxPlatformBin)\SiliconStudio.Paradox.Physics.dll</HintPath>
         </Reference>
+        <Reference Include="SiliconStudio.Paradox.SpriteStudio.Runtime">
+          <HintPath>$(SiliconStudioPackageParadoxPlatformBin)\SiliconStudio.Paradox.SpriteStudio.Runtime.dll</HintPath>
+        </Reference>
       </ItemGroup>
     </When>
   </Choose>
@@ -125,14 +130,14 @@
       <!-- If building user solutions (not unit tests), provide assembly processor with ProjectReferences paths so that they can be readded to assembly references for serialization module initializer (otherwise .exe don't have real reference on Game assemblies with auto load scene game) -->
       <SiliconStudioAssemblyProcessorOptions Condition="'$(SiliconStudioUnitTest)' != 'true'">$(SiliconStudioAssemblyProcessorOptions) @(_ResolvedProjectReferencePaths->'--add-reference=%22%(Identity)%22',' ')</SiliconStudioAssemblyProcessorOptions>
       <SiliconStudioAssemblyProcessorOptions Condition="'$(DocumentationFile)' != ''">$(SiliconStudioAssemblyProcessorOptions) --docfile="$(DocumentationFile)"</SiliconStudioAssemblyProcessorOptions>
-      <!-- Physics assembly is actually hard coded/referenced here, remove once a better system is in place! -->
-      <SiliconStudioAssemblyProcessorOptions>$(SiliconStudioAssemblyProcessorOptions) --add-reference="$(SiliconStudioPackageParadoxPlatformBin)\SiliconStudio.Paradox.Physics.dll" --references-file="$(IntermediateOutputPath)ParadoxReferences.cache"</SiliconStudioAssemblyProcessorOptions>
+      <!-- Physics and SpriteStudio assembly is actually hard coded/referenced here, remove once a better system is in place! -->
+      <SiliconStudioAssemblyProcessorOptions>$(SiliconStudioAssemblyProcessorOptions) --add-reference="$(SiliconStudioPackageParadoxPlatformBin)\SiliconStudio.Paradox.Physics.dll" --add-reference="$(SiliconStudioPackageParadoxPlatformBin)\SiliconStudio.Paradox.SpriteStudio.Runtime.dll" --references-file="$(IntermediateOutputPath)ParadoxReferences.cache"</SiliconStudioAssemblyProcessorOptions>
       <SiliconStudioAssemblyProcessorCommand Condition="'$(SiliconStudioAssemblyProcessorCommand)' == ''">"$(SiliconStudioPackageParadoxSdkBin)\SiliconStudio.AssemblyProcessor.exe" --platform=$(SiliconStudioPlatform) --targetFramework=$(SiliconStudioNETFrameworkVersion) $(SiliconStudioAssemblyProcessorOptions) "$(IntermediateOutputPath)$(TargetName)$(TargetExt)"</SiliconStudioAssemblyProcessorCommand>
       <SiliconStudioAssemblyProcessorCommand Condition="'$(AssemblyOriginatorKeyFile)' != ''">$(SiliconStudioAssemblyProcessorCommand) --signkeyfile="$(AssemblyOriginatorKeyFile)" --delete-on-error</SiliconStudioAssemblyProcessorCommand>
     </PropertyGroup>
     
     <!-- Run assembly processor -->
-    <Message Importance="High" Text="SiliconStudio AssemblyProcessor: $(SiliconStudioAssemblyProcessorCommand)"/>
+    <Message Importance="Normal" Text="SiliconStudio AssemblyProcessor: $(SiliconStudioAssemblyProcessorCommand)"/>
     <Exec Command="$(SiliconStudioAssemblyProcessorCommand)">
       <Output TaskParameter="ExitCode" PropertyName="SiliconStudioAssemblyProcessorErrorCode"/>
     </Exec>
@@ -164,7 +169,7 @@
 
     <SiliconStudioParadoxCompileAssetCommand Condition="'$(SiliconStudioParadoxCompileAssetCommand)' == ''">$(SiliconStudioPackageParadoxSdkBin)\SiliconStudio.Assets.CompilerApp.exe</SiliconStudioParadoxCompileAssetCommand>
 
-    <SiliconStudioParadoxCompileAssetCommandProxy Condition="'$(DisableAssetCompilerExecServerProxy)' == 'true'">&quot;$(SiliconStudioParadoxCompileAssetCommand)&quot;</SiliconStudioParadoxCompileAssetCommandProxy>
+    <SiliconStudioParadoxCompileAssetCommandProxy Condition="'$(DisableAssetCompilerExecServerProxy)' == 'true' Or '$(SiliconStudioParadoxDisableAssetCompilerExecServerProxy)' == 'true'">&quot;$(SiliconStudioParadoxCompileAssetCommand)&quot;</SiliconStudioParadoxCompileAssetCommandProxy>
     <SiliconStudioParadoxCompileAssetCommandProxy Condition="'$(SiliconStudioParadoxCompileAssetCommandProxy)' == ''">&quot;$(SiliconStudioPackageParadoxSdkBin)\SiliconStudio.Assets.CompilerClient.exe&quot;</SiliconStudioParadoxCompileAssetCommandProxy>
   </PropertyGroup>
   
@@ -206,8 +211,12 @@
     <!--Check that the package file actually exist-->
     <Error Condition="'$(SiliconStudioBuildProfile)' == ''" Text="The asset compiler is requiring the property (SiliconStudioBuildProfile) to be defined"/>
     <Error Condition="!Exists('$(SiliconStudioCurrentPackagePath)')" Text="Unable to find package decription from path [$(SiliconStudioCurrentPackagePath)]"/>
-    <Exec WorkingDirectory="$(TargetDir)" 
-          Command="$(SiliconStudioParadoxCompileAssetCommandProxy) $(SiliconStudioParadoxCompileAssetOptions) --disable-auto-compile --project-configuration &quot;$(Configuration)&quot; --platform=$(SiliconStudioPlatform) --graphics-platform=$(SiliconStudioParadoxGraphicsApi) --profile=$(SiliconStudioBuildProfile) --project-configuration=$(Configuration) --output-path=&quot;$(SiliconStudioCompileAssetOutputPath)&quot; --build-path=&quot;$(SiliconStudioCompileAssetBuildPath)&quot; --package-file=&quot;$(SiliconStudioCurrentPackagePath)&quot; --log-pipe=&quot;$(SiliconStudioBuildEngineLogPipeUrl)&quot;" />
+    <PropertyGroup>
+      <SiliconStudioParadoxCompileAssetCommandProxy>$(SiliconStudioParadoxCompileAssetCommandProxy) $(SiliconStudioParadoxCompileAssetOptions) --disable-auto-compile --project-configuration &quot;$(Configuration)&quot; --platform=$(SiliconStudioPlatform) --graphics-platform=$(SiliconStudioParadoxGraphicsApi) --profile=$(SiliconStudioBuildProfile) --project-configuration=$(Configuration) --output-path=&quot;$(SiliconStudioCompileAssetOutputPath)&quot; --build-path=&quot;$(SiliconStudioCompileAssetBuildPath)&quot; --package-file=&quot;$(SiliconStudioCurrentPackagePath)&quot; --log-pipe=&quot;$(SiliconStudioBuildEngineLogPipeUrl)&quot;</SiliconStudioParadoxCompileAssetCommandProxy>
+      <SiliconStudioParadoxCompileAssetCommandProxy Condition="'$(SiliconStudioBuildEngineLogVerbose)' != ''">$(SiliconStudioParadoxCompileAssetCommandProxy) --verbose</SiliconStudioParadoxCompileAssetCommandProxy>
+      <SiliconStudioParadoxCompileAssetCommandProxy Condition="'$(SiliconStudioBuildEngineLogDebug)' != ''">$(SiliconStudioParadoxCompileAssetCommandProxy) --debug</SiliconStudioParadoxCompileAssetCommandProxy>
+    </PropertyGroup>
+    <Exec WorkingDirectory="$(TargetDir)" Command="$(SiliconStudioParadoxCompileAssetCommandProxy)" />
     <!-- Android specific: include build output in _AndroidAssetsDest so that APK is regenerated -->
     <ItemGroup Condition="'$(SiliconStudioPlatform)' == 'Android'">
       <_AndroidAssetsDest Include="$(SiliconStudioCompileAssetOutputPath)\**\*.*" />

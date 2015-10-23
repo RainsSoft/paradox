@@ -18,9 +18,15 @@ namespace SiliconStudio.Assets.Compiler
             if (context == null) throw new ArgumentNullException("context");
             if (assetItem == null) throw new ArgumentNullException("assetItem");
 
-            assetItem = assetItem.Package.Session.DependencyManager.FindDependencySet(assetItem.Id).Item;
-
             var compilerResult = new AssetCompilerResult();
+
+            var dependencySet = assetItem.Package.Session.DependencyManager.FindDependencySet(assetItem.Id);
+            if (dependencySet == null)
+            {
+                compilerResult.Warning("Could not find dependency for asset [{0}]", assetItem);
+                return compilerResult;
+            }
+            assetItem = dependencySet.Item;
 
             if (assetItem.Package == null)
             {
@@ -32,7 +38,6 @@ namespace SiliconStudio.Assets.Compiler
 
             // create the a package that contains only the asset and its the dependencies
             var dependenciesCompilePackage = assetItem.Package.Session.CreateCompilePackageFromAsset(assetItem);
-            assetCompilerContext.Package = dependenciesCompilePackage.LocalPackages.FirstOrDefault();
             var clonedAsset = dependenciesCompilePackage.FindAsset(assetItem.Id);
 
             CompileWithDependencies(assetCompilerContext, clonedAsset, assetItem, compilerResult);
@@ -49,7 +54,7 @@ namespace SiliconStudio.Assets.Compiler
         /// <param name="compilationResult">The result of the compilation.</param>
         protected virtual void CompileWithDependencies(AssetCompilerContext context, AssetItem assetItem, AssetItem originalItem, AssetCompilerResult compilationResult)
         {
-            CompilePackage(context, compilationResult);
+            CompilePackage(context, assetItem.Package, compilationResult);
         }
 
         /// <summary>
@@ -58,10 +63,10 @@ namespace SiliconStudio.Assets.Compiler
         /// <param name="context">The context which contains the package to compile.</param>
         /// <param name="result">The <see cref="AssetCompilerResult"/> where the build steps will be added.</param>
         /// <returns></returns>
-        protected static BuildStep CompilePackage(AssetCompilerContext context, AssetCompilerResult result)
+        protected static BuildStep CompilePackage(AssetCompilerContext context, Package package, AssetCompilerResult result)
         {
             // compile the fake package (create the build steps)
-            var assetPackageCompiler = new PackageCompiler();
+            var assetPackageCompiler = new PackageCompiler(new PackageAssetEnumerator(package));
             var dependenciesCompileResult = assetPackageCompiler.Compile(context);
 
             // Create the result build steps if not existing yet

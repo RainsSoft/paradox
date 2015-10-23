@@ -213,12 +213,16 @@ namespace SiliconStudio.Paradox.Engine
             else if (entityMatch) // && entityMatch
             {
                 // one of the components of the entity changed we need to regenerate the AssociatedData
-                OnEntityRemoved(entity, entityData);
-                entityData = GenerateAssociatedData(entity);
-                OnEntityAdding(entity, entityData);
-                matchingEntities[entity] = entityData;
-                if (EntityManager.IsEnabled(entity))
-                    enabledEntities[entity] = entityData;
+                if (!IsAssociatedDataValid(entity, entityData))
+                {
+                    OnEntityRemoved(entity, entityData);
+                    entityData = GenerateAssociatedData(entity);
+                    OnEntityAdding(entity, entityData);
+
+                    matchingEntities[entity] = entityData;
+                    if (EntityManager.IsEnabled(entity))
+                        enabledEntities[entity] = entityData;
+                }
             }
         }
 
@@ -227,6 +231,15 @@ namespace SiliconStudio.Paradox.Engine
         /// <param name="entity">The entity.</param>
         /// <returns>The associated data.</returns>
         protected abstract T GenerateAssociatedData(Entity entity);
+
+        /// <summary>Checks if the current associated data is valid, or if readding the entity is required.</summary>
+        /// <param name="entity">The entity.</param>
+        /// <param name="associatedData">The associated data.</param>
+        /// <returns>True if the change in associated data requires the entity to be readded, false otherwise.</returns>
+        protected virtual bool IsAssociatedDataValid(Entity entity, T associatedData)
+        {
+            return GenerateAssociatedData(entity).Equals(associatedData);
+        }
 
         protected virtual bool EntityMatch(Entity entity)
         {

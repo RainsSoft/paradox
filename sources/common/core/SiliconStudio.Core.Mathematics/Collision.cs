@@ -57,7 +57,7 @@ namespace SiliconStudio.Core.Mathematics
     /// <summary>
     /// Contains static methods to help in determining intersections, containment, etc.
     /// </summary>
-    public static class Collision
+    public static class CollisionHelper
     {
         /// <summary>
         /// Determines the closest point between a point and a triangle.
@@ -1472,7 +1472,7 @@ namespace SiliconStudio.Core.Mathematics
         {
             unsafe
             {
-                fixed (Plane* planeStart = &frustum.Plane1)
+                fixed (Plane* planeStart = &frustum.LeftPlane)
                 {
                     var plane = planeStart;
                     for (int i = 0; i < 6; ++i)
@@ -1493,7 +1493,7 @@ namespace SiliconStudio.Core.Mathematics
 /*
             unsafe
             {
-                fixed (Plane* planeStart = &frustum.Plane1)
+                fixed (Plane* planeStart = &frustum.LeftPlane)
                 fixed (Vector3* pExtent = &boundingBoxExt.Extent)
                 {
                     var plane = planeStart;

@@ -136,6 +136,10 @@ namespace SiliconStudio.TextureConverter.TexLibraries
                     CompressingRequest compress = (CompressingRequest)request;
                     return SupportFormat(compress.Format) && SupportFormat(image.Format);
 
+                case RequestType.Converting:
+                    ConvertingRequest converting = (ConvertingRequest)request;
+                    return SupportFormat(converting.Format) && SupportFormat(converting.Format);
+
                 case RequestType.Export:
                     return SupportFormat(image.Format) && Path.GetExtension(((ExportRequest)request).FilePath).Equals(".dds");
 
@@ -174,6 +178,9 @@ namespace SiliconStudio.TextureConverter.TexLibraries
                 case RequestType.Decompressing:
                     Decompress(image, libraryData, (DecompressingRequest)request);
                     break;
+                case RequestType.Converting:
+                    Convert(image, libraryData, (ConvertingRequest)request);
+                    break;
                 case RequestType.MipMapsGeneration:
                     GenerateMipMaps(image, libraryData, (MipMapsGenerationRequest)request);
                     break;
@@ -201,7 +208,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
         /// <exception cref="TextureToolsException">Loading dds file failed</exception>
         private void Load(TexImage image, DxtTextureLibraryData libraryData, LoadingRequest loader)
         {
-            Log.Info("Loading " + loader.FilePath + " ...");
+            Log.Debug("Loading " + loader.FilePath + " ...");
 
             libraryData = new DxtTextureLibraryData();
             image.LibraryData[this] = libraryData;
@@ -280,7 +287,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
         /// <exception cref="TextureToolsException">Compression failed</exception>
         private void Compress(TexImage image, DxtTextureLibraryData libraryData, CompressingRequest request)
         {
-            Log.Info("Converting/Compressing with " + request.Format + " ...");
+            Log.Debug("Converting/Compressing with " + request.Format + " ...");
 
             if(libraryData.DxtImages == null || libraryData.DxtImages.Length == 0)
                 return;
@@ -335,7 +342,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
             int width = request.ComputeWidth(image);
             int height = request.ComputeHeight(image);
 
-            Log.Info("Rescaling to " + width + "x" + height + " ...");
+            Log.Debug("Rescaling to " + width + "x" + height + " ...");
 
             TEX_FILTER_FLAGS filter;
             switch(request.Filter)
@@ -381,6 +388,43 @@ namespace SiliconStudio.TextureConverter.TexLibraries
         }
 
         /// <summary>
+        /// Convert the specified image.
+        /// </summary>
+        /// <param name="image">The image.</param>
+        /// <param name="libraryData">The library data.</param>
+        /// <param name="request">The decompression request</param>
+        /// <exception cref="TextureToolsException">Decompression failed</exception>
+        private void Convert(TexImage image, DxtTextureLibraryData libraryData, ConvertingRequest request)
+        {
+            // TODO: temp if request format is SRGB we force it to non-srgb to perform the conversion. Will not work if texture input is SRGB
+            var outputFormat = request.Format.IsSRgb() ? request.Format.ToNonSRgb() : request.Format;
+
+            Log.Debug("Converting texture from {0} to {1}", ((PixelFormat)libraryData.Metadata.format), outputFormat);
+
+            var scratchImage = new ScratchImage();
+            var hr = Utilities.Convert(libraryData.DxtImages, libraryData.DxtImages.Length, ref libraryData.Metadata, (DXGI_FORMAT)outputFormat, TEX_FILTER_FLAGS.TEX_FILTER_BOX, 0.0f, scratchImage);
+
+            if (hr != HRESULT.S_OK)
+            {
+                Log.Error("Converting failed: " + hr);
+                throw new TextureToolsException("Converting failed: " + hr);
+            }
+
+            // Freeing Memory
+            if (image.DisposingLibrary != null) image.DisposingLibrary.Dispose(image);
+
+            libraryData.Image = scratchImage;
+            libraryData.DxtImages = libraryData.Image.GetImages();
+            libraryData.Metadata = libraryData.Image.metadata;
+            image.DisposingLibrary = this;
+
+            // adapt the image format based on desired output format
+            ChangeDxtImageType(libraryData, (DXGI_FORMAT)request.Format);
+
+            UpdateImage(image, libraryData);
+        }
+
+        /// <summary>
         /// Decompresses the specified image.
         /// </summary>
         /// <param name="image">The image.</param>
@@ -389,7 +433,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
         /// <exception cref="TextureToolsException">Decompression failed</exception>
         private void Decompress(TexImage image, DxtTextureLibraryData libraryData, DecompressingRequest request)
         {
-            Log.Info("Decompressing texture ...");
+            Log.Debug("Decompressing texture ...");
 
             // determine the output format to avoid any sRGB/RGB conversions (only decompression, no conversion)
             var outputFormat = !((PixelFormat)libraryData.Metadata.format).IsSRgb() ? request.DecompressedFormat.ToNonSRgb() : request.DecompressedFormat.ToSRgb();
@@ -431,7 +475,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
         /// </exception>
         private void GenerateMipMaps(TexImage image, DxtTextureLibraryData libraryData, MipMapsGenerationRequest request)
         {
-            Log.Info("Generating Mipmaps ... ");
+            Log.Debug("Generating Mipmaps ... ");
 
             var filter = TEX_FILTER_FLAGS.TEX_FILTER_DEFAULT;
             switch (request.Filter)
@@ -446,7 +490,8 @@ namespace SiliconStudio.TextureConverter.TexLibraries
                     filter |= TEX_FILTER_FLAGS.TEX_FILTER_CUBIC;
                     break;
                 case Filter.MipMapGeneration.Box:
-                    filter |= TEX_FILTER_FLAGS.TEX_FILTER_FANT;
+                    // Box filter is supported only for power of two textures
+                    filter |= image.IsPowerOfTwo() ? TEX_FILTER_FLAGS.TEX_FILTER_FANT : TEX_FILTER_FLAGS.TEX_FILTER_LINEAR;
                     break;
                 default:
                     filter |= TEX_FILTER_FLAGS.TEX_FILTER_FANT;
@@ -507,7 +552,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
         /// </exception>
         private void Export(TexImage image, DxtTextureLibraryData libraryData, ExportRequest request)
         {
-            Log.Info("Exporting to " + request.FilePath + " ...");
+            Log.Debug("Exporting to " + request.FilePath + " ...");
 
             if (request.MinimumMipMapSize > 1 && request.MinimumMipMapSize <= libraryData.Metadata.Width && request.MinimumMipMapSize <= libraryData.Metadata.Height) // if a mimimun mipmap size was requested
             {
@@ -609,7 +654,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
         /// <exception cref="TexLibraryException">Failed to generate the normal map</exception>
         public void GenerateNormalMap(TexImage image, DxtTextureLibraryData libraryData, NormalMapGenerationRequest request)
         {
-            Log.Info("Generating Normal Map ... ");
+            Log.Debug("Generating Normal Map ... ");
 
             ScratchImage scratchImage = new ScratchImage();
 
@@ -641,7 +686,7 @@ namespace SiliconStudio.TextureConverter.TexLibraries
         /// <param name="libraryData">The library data.</param>
         public void PreMultiplyAlpha(TexImage image, DxtTextureLibraryData libraryData)
         {
-            Log.Info("Premultiplying alpha ... ");
+            Log.Debug("Premultiplying alpha ... ");
 
             ScratchImage scratchImage = new ScratchImage();
 

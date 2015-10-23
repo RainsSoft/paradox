@@ -26,6 +26,7 @@ namespace SiliconStudio.TextureConverter.Tests
         }
 
 
+        [Ignore]
         [TestCase("Texture3D_WMipMaps_ATC_RGBA_Explicit.pdx")]
         [TestCase("TextureArray_WMipMaps_ATC_RGBA_Explicit.pdx")]
         [TestCase("TextureCube_WMipMaps_RGBA8888.pdx")]
@@ -44,8 +45,8 @@ namespace SiliconStudio.TextureConverter.Tests
         {
             TexImage image = TestTools.Load(library, "Texture3D_WMipMaps_ATC_RGBA_Explicit.pdx");
             Assert.IsFalse(library.CanHandleRequest(image, new DecompressingRequest(false)));
-            Assert.IsFalse(library.CanHandleRequest(image, new LoadingRequest(new TexImage())));
-            Assert.IsTrue(library.CanHandleRequest(image, new LoadingRequest(Paradox.Graphics.Image.New1D(5, 0, Paradox.Graphics.PixelFormat.ATC_RGBA_Explicit))));
+            Assert.IsFalse(library.CanHandleRequest(image, new LoadingRequest(new TexImage(), false)));
+            Assert.IsTrue(library.CanHandleRequest(image, new LoadingRequest(Paradox.Graphics.Image.New1D(5, 0, Paradox.Graphics.PixelFormat.ATC_RGBA_Explicit), false)));
             Assert.IsTrue(library.CanHandleRequest(image, new LoadingRequest("TextureArray_WMipMaps_BC3.dds", false)));
             Assert.IsTrue(library.CanHandleRequest(image, new ExportRequest("TextureArray_WMipMaps_BC3.pdx", 0)));
             Assert.IsTrue(library.CanHandleRequest(image, new ExportToParadoxRequest()));
@@ -53,6 +54,7 @@ namespace SiliconStudio.TextureConverter.Tests
         }
 
 
+        [Ignore]
         [TestCase("Texture3D_WMipMaps_ATC_RGBA_Explicit.pdx")]
         [TestCase("TextureArray_WMipMaps_ATC_RGBA_Explicit.pdx")]
         [TestCase("TextureCube_WMipMaps_RGBA8888.pdx")]
@@ -65,6 +67,7 @@ namespace SiliconStudio.TextureConverter.Tests
             image.Dispose();
         }
 
+        [Ignore]
         [TestCase("Texture3D_WMipMaps_ATC_RGBA_Explicit.pdx", 4)]
         [TestCase("TextureArray_WMipMaps_ATC_RGBA_Explicit.pdx", 512)]
         [TestCase("TextureCube_WMipMaps_RGBA8888.pdx", 16)]
@@ -77,6 +80,7 @@ namespace SiliconStudio.TextureConverter.Tests
             image.Dispose();
         }
 
+        [Ignore]
         [TestCase("Texture3D_WMipMaps_ATC_RGBA_Explicit.pdx")]
         [TestCase("TextureArray_WMipMaps_ATC_RGBA_Explicit.pdx")]
         [TestCase("TextureCube_WMipMaps_RGBA8888.pdx")]

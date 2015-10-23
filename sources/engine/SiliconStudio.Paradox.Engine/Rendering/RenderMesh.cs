@@ -229,7 +229,7 @@ namespace SiliconStudio.Paradox.Rendering
             return vertexArrayObjectAEN;
         }
 
-        public void UpdateMaterial()
+        public bool UpdateMaterial()
         {
             var materialIndex = Mesh.MaterialIndex;
             Material = RenderModel.GetMaterial(materialIndex);
@@ -244,6 +244,8 @@ namespace SiliconStudio.Paradox.Rendering
                 IsShadowCaster = IsShadowCaster && materialInstance.IsShadowCaster;
                 IsShadowReceiver = IsShadowReceiver && materialInstance.IsShadowReceiver;
             }
+
+            return Material != null;
         }
 
         internal void Initialize(GraphicsDevice device)
@@ -266,6 +268,21 @@ namespace SiliconStudio.Paradox.Rendering
 
             // TODO: Should we add RenderMesh.Parameters before ModelComponent.Parameters to allow user overiddes at component level?
             parameterCollections.Add(parameters);
+        }
+
+        public override void Dispose()
+        {
+            if (vertexArrayObject != null)
+            {
+                vertexArrayObject.Dispose();
+                vertexArrayObject = null;
+            }
+
+            if (vertexArrayObjectAEN != null)
+            {
+                vertexArrayObjectAEN.Dispose();
+                vertexArrayObjectAEN = null;
+            }
         }
     }
 }

@@ -117,12 +117,11 @@ namespace SiliconStudio.Paradox.Assets.Textures
         /// Utility function to check that the texture size is supported on the graphics platform for the provided graphics profile.
         /// </summary>
         /// <param name="parameters">The import parameters</param>
-        /// <param name="textureSizeInput">The texture size input.</param>
         /// <param name="textureSizeRequested">The texture size requested.</param>
         /// <param name="logger">The logger.</param>
         /// <returns>true if the texture size is supported</returns>
         /// <exception cref="System.ArgumentOutOfRangeException">graphicsProfile</exception>
-        public static Size2 FindBestTextureSize(ImportParameters parameters, Size2 textureSizeInput, Size2 textureSizeRequested, ILogger logger)
+        public static Size2 FindBestTextureSize(ImportParameters parameters, Size2 textureSizeRequested, ILogger logger = null)
         {
             var textureSize = textureSizeRequested;
 
@@ -147,7 +146,7 @@ namespace SiliconStudio.Paradox.Assets.Textures
                         // TODO: TEMPORARY SETUP A MAX TEXTURE OF 1024. THIS SHOULD BE SPECIFIED DONE IN THE ASSET INSTEAD
                         textureSize.Width = Math.Min(MathUtil.NextPowerOfTwo(textureSize.Width), 1024);
                         textureSize.Height = Math.Min(MathUtil.NextPowerOfTwo(textureSize.Height), 1024);
-                        logger.Warning("Graphic profiles 9.1/9.2/9.3 do not support mipmaps with textures that are not power of 2. Asset is automatically resized to " + textureSize);
+                        logger?.Warning("Graphic profiles 9.1/9.2/9.3 do not support mipmaps with textures that are not power of 2. Asset is automatically resized to " + textureSize);
                     }
                     maxTextureSize = parameters.GraphicsProfile >= GraphicsProfile.Level_9_3 ? 4096 : 2048;
                     break;
@@ -166,7 +165,7 @@ namespace SiliconStudio.Paradox.Assets.Textures
 
             if (textureSize.Width > maxTextureSize || textureSize.Height > maxTextureSize)
             {
-                logger.Error("Graphic profile {0} do not support texture with resolution {2} x {3} because it is larger than {1}. " +
+                logger?.Error("Graphic profile {0} do not support texture with resolution {2} x {3} because it is larger than {1}. " +
                              "Please reduce texture size or upgrade your graphic profile.", parameters.GraphicsProfile, maxTextureSize, textureSize.Width, textureSize.Height);
                 return new Size2(Math.Min(textureSize.Width, maxTextureSize), Math.Min(textureSize.Height, maxTextureSize));
             }
@@ -180,28 +179,11 @@ namespace SiliconStudio.Paradox.Assets.Textures
         /// <param name="parameters">The conversion request parameters</param>
         /// <param name="imageSize">The texture output size</param>
         /// <param name="inputImageFormat">The pixel format of the input image</param>
-        /// <param name="alphaDepth">The depth of the alpha channel</param>
         /// <returns>The pixel format to use as output</returns>
-        public static PixelFormat DetermineOutputFormat(ImportParameters parameters, Int2 imageSize, PixelFormat inputImageFormat, int alphaDepth)
+        public static PixelFormat DetermineOutputFormat(ImportParameters parameters, Int2 imageSize, PixelFormat inputImageFormat)
         {
             var hint = parameters.TextureHint;
-
             var alphaMode = parameters.DesiredAlpha;
-            if (alphaMode == AlphaFormat.Auto)
-            {
-                switch (alphaDepth)
-                {
-                    case 0:
-                        alphaMode = AlphaFormat.None;
-                        break;
-                    case 1:
-                        alphaMode = AlphaFormat.Mask;
-                        break;
-                    default:
-                        alphaMode = AlphaFormat.Interpolated;
-                        break;
-                }
-            }
 
             // Default output format
             var outputFormat = PixelFormat.R8G8B8A8_UNorm;
@@ -413,6 +395,14 @@ namespace SiliconStudio.Paradox.Assets.Textures
             // Apply transformations
             textureTool.Decompress(texImage, parameters.IsSRgb);
 
+            // Special case when the input texture is monochromatic but it is supposed to be a color and we are working in SRGB
+            // In that case, we need to transform it to a supported SRGB format (R8G8B8A8_UNorm_SRgb)
+            // TODO: As part of a conversion phase, this code may be moved to a dedicated method in this class at some point
+            if (parameters.TextureHint == TextureHint.Color && parameters.IsSRgb && (texImage.Format == PixelFormat.R8_UNorm || texImage.Format == PixelFormat.A8_UNorm))
+            {
+                textureTool.Convert(texImage, PixelFormat.R8G8B8A8_UNorm_SRgb);
+            }
+
             if (cancellationToken.IsCancellationRequested) // abort the process if cancellation is demanded
                 return ResultStatus.Cancelled;
 
@@ -426,7 +416,7 @@ namespace SiliconStudio.Paradox.Assets.Textures
             }
 
             // Find the target size
-            targetSize = FindBestTextureSize(parameters, fromSize, targetSize, logger);
+            targetSize = FindBestTextureSize(parameters, targetSize, logger);
 
             // Resize the image only if needed
             if (targetSize != fromSize)
@@ -439,6 +429,15 @@ namespace SiliconStudio.Paradox.Assets.Textures
 
             // texture size is now determined, we can cache it
             var textureSize = new Int2(texImage.Width, texImage.Height);
+
+            // determine the alpha format of the texture when set to Auto
+            // Note: this has to be done before the ColorKey transformation in order to be able to take advantage of image file AlphaDepth information
+            if(parameters.DesiredAlpha == AlphaFormat.Auto)
+            {
+                var colorKey = parameters.ColorKeyEnabled? (Color?)parameters.ColorKeyColor : null;
+                var alphaLevel = textureTool.GetAlphaLevels(texImage, new Rectangle(0, 0, textureSize.X, textureSize.Y), colorKey, logger);
+                parameters.DesiredAlpha = alphaLevel.ToAlphaFormat();
+            }
 
             // Apply the color key
             if (parameters.ColorKeyEnabled)
@@ -458,7 +457,7 @@ namespace SiliconStudio.Paradox.Assets.Textures
             // Generate mipmaps
             if (parameters.GenerateMipmaps)
             {
-                var boxFilteringIsSupported = texImage.Format != PixelFormat.B8G8R8A8_UNorm_SRgb || (MathUtil.IsPow2(textureSize.X) && MathUtil.IsPow2(textureSize.Y));
+                var boxFilteringIsSupported = !texImage.Format.IsSRgb() || (MathUtil.IsPow2(textureSize.X) && MathUtil.IsPow2(textureSize.Y));
                 textureTool.GenerateMipMaps(texImage, boxFilteringIsSupported? Filter.MipMapGeneration.Box: Filter.MipMapGeneration.Linear);
             }
                 
@@ -468,7 +467,7 @@ namespace SiliconStudio.Paradox.Assets.Textures
 
             // Convert/Compress to output format
             // TODO: Change alphaFormat depending on actual image content (auto-detection)?
-            var outputFormat = DetermineOutputFormat(parameters, textureSize, texImage.Format, texImage.GetAlphaDepth());
+            var outputFormat = DetermineOutputFormat(parameters, textureSize, texImage.Format);
             textureTool.Compress(texImage, outputFormat, (TextureConverter.Requests.TextureQuality)parameters.TextureQuality);
 
             if (cancellationToken.IsCancellationRequested) // abort the process if cancellation is demanded
@@ -482,28 +481,24 @@ namespace SiliconStudio.Paradox.Assets.Textures
 
                 assetManager.Save(parameters.OutputUrl, outputImage.ToSerializableVersion());
 
-                logger.Info("Compression successful [{3}] to ({0}x{1},{2})", outputImage.Description.Width, outputImage.Description.Height, outputImage.Description.Format, parameters.OutputUrl);
+                logger.Verbose("Compression successful [{3}] to ({0}x{1},{2})", outputImage.Description.Width, outputImage.Description.Height, outputImage.Description.Format, parameters.OutputUrl);
             }
 
             return ResultStatus.Successful;
         }
 
-        /// <summary>
-        /// Find the region of the sprite specified by the provided pixel coordinate in a texture.
-        /// </summary>
-        /// <param name="filePath">The full path to the texture</param>
-        /// <param name="pixelCoordinates">A pixel of the sprite</param>
-        /// <param name="transparencyColor">The transparency color of the texture</param>
-        /// <returns></returns>
-        public static Rectangle FindSpriteRegion(string filePath, Int2 pixelCoordinates, Color? transparencyColor)
+        private static AlphaFormat ToAlphaFormat(this AlphaLevels alphaLevels)
         {
-            using (var tool = new TextureTool())
-            using (var image = tool.Load(filePath, false))
+            switch (alphaLevels)
             {
-                tool.Decompress(image, false);
-
-                var mask = transparencyColor.HasValue ? 0xffffffff: 0xff000000;
-                return tool.FindSpriteRegion(image, pixelCoordinates, transparencyColor, mask);
+                case AlphaLevels.NoAlpha:
+                    return AlphaFormat.None;
+                case AlphaLevels.MaskAlpha:
+                    return AlphaFormat.Mask;
+                case AlphaLevels.InterpolatedAlpha:
+                    return AlphaFormat.Interpolated;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(alphaLevels), alphaLevels, null);
             }
         }
     }

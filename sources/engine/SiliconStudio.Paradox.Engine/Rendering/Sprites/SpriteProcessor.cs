@@ -16,7 +16,7 @@ namespace SiliconStudio.Paradox.Rendering.Sprites
         /// Initializes a new instance of the <see cref="SpriteProcessor"/> class.
         /// </summary>
         public SpriteProcessor()
-            : base(new PropertyKey[] { SpriteComponent.Key, TransformComponent.Key })
+            : base(SpriteComponent.Key, TransformComponent.Key)
         {
             Sprites = new List<SpriteComponentState>();
         }
@@ -46,6 +46,13 @@ namespace SiliconStudio.Paradox.Rendering.Sprites
                 SpriteComponent = entity.Get(SpriteComponent.Key),
                 TransformComponent = entity.Get(TransformComponent.Key),
             };
+        }
+
+        protected override bool IsAssociatedDataValid(Entity entity, SpriteComponentState associatedData)
+        {
+            return
+                entity.Get(SpriteComponent.Key) == associatedData.SpriteComponent &&
+                entity.Get(TransformComponent.Key) == associatedData.TransformComponent;
         }
 
         public class SpriteComponentState

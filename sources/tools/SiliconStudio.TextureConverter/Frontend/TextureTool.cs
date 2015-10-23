@@ -346,7 +346,7 @@ namespace SiliconStudio.TextureConverter
         /// <param name="isSRgb">Indicate if the input file contains sRGB data</param>
         /// <remarks>The ownership of the provided image is not taken by the tex tool. The user has to dispose it him-self</remarks>
         /// <returns>An instance of the class <see cref="TexImage"/> containing your loaded image</returns>
-        public TexImage Load(Image image, bool isSRgb = false)
+        public TexImage Load(Image image, bool isSRgb)
         {
             if (image == null) throw new ArgumentNullException("image");
             return Load(new LoadingRequest(image, isSRgb));
@@ -384,14 +384,21 @@ namespace SiliconStudio.TextureConverter
         /// <param name="isSRgb">Indicate is the image to decompress is an sRGB image</param>
         public void Decompress(TexImage image, bool isSRgb)
         {
-            if (!image.Format.IsCompressed())
+            if (image.Format.IsCompressed())
             {
-                return;
+                ExecuteRequest(image, new DecompressingRequest(isSRgb, image.Format));
             }
-
-            ExecuteRequest(image, new DecompressingRequest(isSRgb, image.Format));
         }
 
+        /// <summary>
+        /// Converts the <see cref="TexImage"/> to the specified destination pixelformat.
+        /// </summary>
+        /// <param name="image">The <see cref="TexImage"/>.</param>
+        /// <param name="destinationFormat">The destination pixel format</param>
+        public void Convert(TexImage image, PixelFormat destinationFormat)
+        {
+            ExecuteRequest(image, new ConvertingRequest(destinationFormat));
+        }
 
         /// <summary>
         /// Saves the specified <see cref="TexImage"/> into a file.
@@ -724,6 +731,88 @@ namespace SiliconStudio.TextureConverter
             var b4 = (value >> 24) & 0xff;
 
             return b4 << 24 | b1 << 16 | b2 << 8 | b3 << 0;
+        }
+
+        /// <summary>
+        /// Gets the alpha levels of the image in the provided region.
+        /// </summary>
+        /// <param name="texture">The texture</param>
+        /// <param name="region">The region of the texture to analyze</param>
+        /// <param name="tranparencyColor">The color used as transparent color. If null use standard alpha channel.</param>
+        /// <param name="logger">The logger used to log information</param>
+        /// <returns></returns>
+        public unsafe AlphaLevels GetAlphaLevels(TexImage texture, Rectangle region, Color? tranparencyColor, ILogger logger = null)
+        {
+            // quick escape when it is possible to know the absence of alpha from the file itself
+            var alphaDepth = texture.GetAlphaDepth();
+            if(!tranparencyColor.HasValue && alphaDepth == 0)
+                return AlphaLevels.NoAlpha;
+
+            // check that we support the format
+            var format = texture.Format;
+            var pixelSize = format.SizeInBytes();
+            if (texture.Dimension != TexImage.TextureDimension.Texture2D || !(format.IsRGBAOrder() || format.IsBGRAOrder() || pixelSize != 4))
+            {
+                var guessedAlphaLevel = alphaDepth > 0 ? AlphaLevels.InterpolatedAlpha : AlphaLevels.NoAlpha;
+                logger?.Debug("Impossible to find alpha levels for texture type {0}. Returning default alpha level '{1}'.", format, guessedAlphaLevel);
+                return guessedAlphaLevel;
+            }
+
+            // truncate the provided region in order to be sure to be in the texture
+            region.Width = Math.Min(region.Width, texture.Width - region.Left);
+            region.Height = Math.Min(region.Height, texture.Height- region.Top);
+
+            var alphaLevel = AlphaLevels.NoAlpha;
+            var stride = texture.RowPitch;
+            var startPtr = (byte*)texture.Data + stride * region.Y + pixelSize * region.X;
+            var rowPtr = startPtr;
+
+            if (tranparencyColor.HasValue) // specific case when using a transparency color
+            {
+                var transparencyValue = format.IsRGBAOrder() ? tranparencyColor.Value.ToRgba() : tranparencyColor.Value.ToBgra();
+                
+                for (int y = 0; y < region.Height; ++y)
+                {
+                    var ptr = (int*)rowPtr;
+
+                    for (int x = 0; x < region.Width; x++)
+                    {
+                        if (*ptr == transparencyValue)
+                            return AlphaLevels.MaskAlpha;
+
+                        ptr += 1;
+                    }
+                    rowPtr += stride;
+                }
+            }
+            else // use default alpha channel
+            {
+                for (int y = 0; y < region.Height; ++y)
+                {
+                    var ptr = rowPtr+3;
+
+                    for (int x = 0; x < region.Width; x++)
+                    {
+                        var value = *ptr;
+                        if (value == 0)
+                        {
+                            if (alphaDepth == 1)
+                                return AlphaLevels.MaskAlpha;
+
+                            alphaLevel = AlphaLevels.MaskAlpha;
+                        }
+                        else if (value != 0xff)
+                        {
+                            return AlphaLevels.InterpolatedAlpha;
+                        }
+
+                        ptr += 4;
+                    }
+                    rowPtr += stride;
+                }
+            }
+
+            return alphaLevel;
         }
 
         /// <summary>
@@ -1342,7 +1431,6 @@ namespace SiliconStudio.TextureConverter
                 }
             }
         }
-
 
         static void Main(string[] args)
         {

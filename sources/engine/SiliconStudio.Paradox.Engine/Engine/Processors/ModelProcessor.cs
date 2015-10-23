@@ -29,7 +29,7 @@ namespace SiliconStudio.Paradox.Engine.Processors
         /// Initializes a new instance of the <see cref="ModelProcessor"/> class.
         /// </summary>
         public ModelProcessor()
-            : base(new PropertyKey[] { ModelComponent.Key, TransformComponent.Key })
+            : base(ModelComponent.Key, TransformComponent.Key)
         {
             ModelGroups = new List<RenderModelCollection>();
             allModelGroups = new RenderModelCollection[32];
@@ -44,6 +44,11 @@ namespace SiliconStudio.Paradox.Engine.Processors
             return new RenderModelItem(new RenderModel(entity.Get<ModelComponent>()), entity.Transform);
         }
 
+        protected override bool IsAssociatedDataValid(Entity entity, RenderModelItem associatedData)
+        {
+            return entity.Get(ModelComponent.Key) == associatedData.ModelComponent && entity.Get(TransformComponent.Key) == associatedData.TransformComponent;
+        }
+
         protected override void OnEntityAdding(Entity entity, RenderModelItem data)
         {
             // Register model view hierarchy update
@@ -52,6 +57,9 @@ namespace SiliconStudio.Paradox.Engine.Processors
 
         protected override void OnEntityRemoved(Entity entity, RenderModelItem data)
         {
+            // Dispose the RenderModel and all associated data
+            data.RenderModel.Dispose();
+
             // Unregister model view hierarchy update
             entity.Transform.PostOperations.Remove(data.TransformOperation);
         }

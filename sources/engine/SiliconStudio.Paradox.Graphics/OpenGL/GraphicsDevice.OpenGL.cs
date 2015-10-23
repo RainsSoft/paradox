@@ -85,7 +85,8 @@ namespace SiliconStudio.Paradox.Graphics
         internal SamplerState defaultSamplerState;
         internal DepthStencilState defaultDepthStencilState;
         internal BlendState defaultBlendState;
-        internal int versionMajor, versionMinor;
+        internal int versionMajor, versionMinor; // queried version
+        internal int currentVersionMajor, currentVersionMinor; // glGetVersion
         internal Texture windowProvidedRenderTexture;
         internal Texture windowProvidedDepthTexture;
 
@@ -547,10 +548,11 @@ namespace SiliconStudio.Paradox.Graphics
 #if SILICONSTUDIO_PARADOX_GRAPHICS_API_OPENGLES
                 if (IsOpenGLES2)
                 {
+#if SILICONSTUDIO_PLATFORM_ANDROID
                     // TODO: This issue might just be because we don't specify alignment to glPixelStorei().
                     if (sourceTexture.Width <= 16 || sourceTexture.Height <= 16)
                         throw new NotSupportedException("ReadPixels from texture smaller or equal to 16x16 pixels seems systematically to fails on some android devices."); // example: Galaxy S3
-
+#endif
                     GL.ReadPixels(sourceRectangle.Left, sourceRectangle.Top, sourceRectangle.Width, sourceRectangle.Height, destTexture.FormatGl, destTexture.Type, destTexture.StagingData);
                 }
                 else
@@ -632,9 +634,13 @@ namespace SiliconStudio.Paradox.Graphics
 
             // If we are copying from an SRgb texture to a non SRgb texture, we use a special SRGb copy shader
             var program = copyProgram;
-            if (sourceTexture.Description.Format.IsSRgb() && !destTexture.Description.Format.IsSRgb())
+            var offsetLocation = copyProgramOffsetLocation;
+            var scaleLocation = copyProgramScaleLocation;
+            if (sourceTexture.Description.Format.IsSRgb() && destTexture == windowProvidedRenderTexture)
             {
                 program = copyProgramSRgb;
+                offsetLocation = copyProgramSRgbOffsetLocation;
+                scaleLocation = copyProgramSRgbScaleLocation;
             }
 
             GL.UseProgram(program);
@@ -652,8 +658,8 @@ namespace SiliconStudio.Paradox.Graphics
             GL.EnableVertexAttribArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 0, squareVertices);
-            GL.Uniform4(copyProgramOffsetLocation, sourceOffset.X, sourceOffset.Y, destOffset.X, destOffset.Y);
-            GL.Uniform4(copyProgramScaleLocation, sourceScale.X, sourceScale.Y, destScale.X, destScale.Y);
+            GL.Uniform4(offsetLocation, sourceOffset.X, sourceOffset.Y, destOffset.X, destOffset.Y);
+            GL.Uniform4(scaleLocation, sourceScale.X, sourceScale.Y, destScale.X, destScale.Y);
             GL.Viewport(0, 0, destTexture.Width, destTexture.Height);
             GL.DrawArrays(BeginMode.TriangleStrip, 0, 4);
             GL.DisableVertexAttribArray(0);
@@ -704,7 +710,7 @@ namespace SiliconStudio.Paradox.Graphics
                 "void main()                                         \n" +
                 "{                                                   \n" +
                 "    vec4 color = texture2D(s_texture, vTexCoord);   \n" +
-                "    gl_FragColor = vec4(pow(color.rgb, vec3(1.0f/2.2333f)), color.a); \n" +
+                "    gl_FragColor = vec4(sqrt(color.rgb), color.a); \n" +  // approximation of linear to SRgb
                 "}                                                   \n";
 
             // First initialization of shader program
@@ -1005,10 +1011,7 @@ namespace SiliconStudio.Paradox.Graphics
             var texture = graphicsResource as Texture;
             if (texture != null)
             {
-                if ((texture.Flags & TextureFlags.RenderTarget) != 0)
-                    return FindOrCreateFBO(null, new[] { texture });
-                if ((texture.Flags & TextureFlags.DepthStencil) != 0)
-                    return FindOrCreateFBO(texture, null);
+                return FindOrCreateFBO(texture);
             }
 
             throw new NotSupportedException();
@@ -2178,18 +2181,14 @@ namespace SiliconStudio.Paradox.Graphics
             // Find back OpenGL version from requested version
             OpenGLUtils.GetGLVersion(requestedGraphicsProfile, out versionMajor, out versionMinor);
 
-#if SILICONSTUDIO_PARADOX_GRAPHICS_API_OPENGLES
-#if SILICONSTUDIO_PLATFORM_ANDROID
-            // if the retrieved version of OpenGL does not correspond to the one used for initialization, we should fix it.
-            var glVersion = gameWindow.ContextRenderingApi == GLVersion.ES2 ? 2 : 3;
-            if (glVersion != versionMajor)
+            // check what is actually created
+            if (!OpenGLUtils.GetCurrentGLVersion(out currentVersionMajor, out currentVersionMinor))
             {
-                versionMajor = glVersion;
-                versionMinor = 0;
+                currentVersionMajor = versionMajor;
+                currentVersionMinor = versionMinor;
             }
-#elif SILICONSTUDIO_PLATFORM_IOS
-            // TODO: correct OpenGL version on iOS too?
-#endif
+
+#if SILICONSTUDIO_PARADOX_GRAPHICS_API_OPENGLES
             IsOpenGLES2 = (versionMajor < 3);
             creationFlags |= GraphicsContextFlags.Embedded;
 #endif
@@ -2317,13 +2316,9 @@ namespace SiliconStudio.Paradox.Graphics
 #endif
 
             // TODO: iOS (and possibly other platforms): get real render buffer ID for color/depth?
-            windowProvidedRenderTexture = Texture.New2D(
-                this,
-                width,
-                height,
-                1,
-                presentationParameters.BackBufferFormat,
-                TextureFlags.RenderTarget | Texture.TextureFlagsCustomResourceId);
+            windowProvidedRenderTexture = Texture.New2D(this, width, height, 1,
+                // TODO: As a workaround, because OpenTK(+OpenGLES) doesn't support to create SRgb backbuffer, we fake it by creating a non-SRgb here and CopyScaler2D is responsible to transform it to non SRgb
+                presentationParameters.BackBufferFormat.IsSRgb() ? presentationParameters.BackBufferFormat.ToNonSRgb() : presentationParameters.BackBufferFormat, TextureFlags.RenderTarget | Texture.TextureFlagsCustomResourceId);
             windowProvidedRenderTexture.Reload = (graphicsResource) => { };
 
             boundFBO = windowProvidedFrameBuffer;
@@ -2372,7 +2367,7 @@ namespace SiliconStudio.Paradox.Graphics
         /// </summary>
         /// <param name="presentationParameters">The presentation parameters.</param>
         /// <returns></returns>
-        SwapChainBackend CreateSwapChainBackend(PresentationParameters presentationParameters)
+        private SwapChainBackend CreateSwapChainBackend(PresentationParameters presentationParameters)
         {
             var swapChainBackend = new SwapChainBackend();
             return swapChainBackend;
@@ -2396,10 +2391,7 @@ namespace SiliconStudio.Paradox.Graphics
         /// <value>The default render target.</value>
         internal Texture DefaultRenderTarget
         {
-            get
-            {
-                return defaultRenderTarget;
-            }
+            get { return defaultRenderTarget; }
         }
 
         /// <summary>
@@ -2415,7 +2407,6 @@ namespace SiliconStudio.Paradox.Graphics
 #endif
             //throw new NotImplementedException();
         }*/
-
         /// <summary>
         /// Gets or sets a value indicating whether this GraphicsDevice is in fullscreen.
         /// </summary>
@@ -2530,5 +2521,5 @@ namespace SiliconStudio.Paradox.Graphics
         }
     }
 }
- 
+
 #endif

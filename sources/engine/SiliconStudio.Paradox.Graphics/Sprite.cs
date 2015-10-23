@@ -17,6 +17,8 @@ namespace SiliconStudio.Paradox.Graphics
     [DataSerializerGlobal(typeof(ReferenceSerializer<Sprite>), Profile = "Asset")]
     public class Sprite
     {
+        public const int DefaultPixelsPerUnit = 100;
+
         private ImageOrientation orientation;
         private Vector2 sizeInPixels;
         private Vector2 pixelsPerUnit;
@@ -64,7 +66,7 @@ namespace SiliconStudio.Paradox.Graphics
         public Sprite(string fragmentName, Texture texture)
         {
             Name = fragmentName;
-            PixelsPerUnit = new Vector2(100);
+            PixelsPerUnit = new Vector2(DefaultPixelsPerUnit);
             IsTransparent = true;
             
             Texture = texture;
@@ -124,7 +126,7 @@ namespace SiliconStudio.Paradox.Graphics
         /// <summary>
         /// Gets or sets size of the unstretchable borders of source sprite in pixels.
         /// </summary>
-        /// <remarks>Borders size are ordered as follows X->Left, Y->Right, Z ->Top, W -> Bottom.</remarks>
+        /// <remarks>Borders size are ordered as follows X->Left, Y->Top, Z->Right, W->Bottom.</remarks>
         public Vector4 Borders
         {
             get { return BordersInternal; }

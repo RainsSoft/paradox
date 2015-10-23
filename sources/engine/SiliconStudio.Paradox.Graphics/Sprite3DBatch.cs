@@ -26,7 +26,7 @@ namespace SiliconStudio.Paradox.Graphics
         /// <param name="bufferElementCount">The maximum number element that can be batched in one time.</param>
         /// <param name="batchCapacity">The batch capacity default to 64.</param>
         public Sprite3DBatch(GraphicsDevice device, int bufferElementCount = 1024, int batchCapacity = 64)
-            : base(device, SpriteBatch.Bytecode, StaticQuadBufferInfo.CreateQuadBufferInfo("Sprite3DBatch.VertexIndexBuffer", false, bufferElementCount, batchCapacity), VertexPositionColorTextureSwizzle.Layout)
+            : base(device, SpriteBatch.Bytecode, SpriteBatch.BytecodeSRgb, StaticQuadBufferInfo.CreateQuadBufferInfo("Sprite3DBatch.VertexIndexBuffer", false, bufferElementCount, batchCapacity), VertexPositionColorTextureSwizzle.Layout)
         {
         }
 
@@ -63,7 +63,7 @@ namespace SiliconStudio.Paradox.Graphics
         /// <param name="imageOrientation">The rotation to apply on the image uv</param>
         /// <param name="swizzle">Swizzle mode indicating the swizzle use when sampling the texture in the shader</param>
         /// <param name="depth">The depth of the element. If null, it is calculated using world and view-projection matrix.</param>
-        public void Draw(Texture texture, ref Matrix worldMatrix, ref RectangleF sourceRectangle, ref Vector2 elementSize, ref Color color, 
+        public void Draw(Texture texture, ref Matrix worldMatrix, ref RectangleF sourceRectangle, ref Vector2 elementSize, ref Color4 color, 
                          ImageOrientation imageOrientation = ImageOrientation.AsIs, SwizzleMode swizzle = SwizzleMode.None, float? depth = null)
         {
             // Check that texture is not null
@@ -125,7 +125,7 @@ namespace SiliconStudio.Paradox.Graphics
 
             var elementInfo = new ElementInfo(StaticQuadBufferInfo.VertexByElement, StaticQuadBufferInfo.IndicesByElement, ref drawInfo, depthSprite);
 
-            Draw(texture, null, ref elementInfo);
+            Draw(texture, ref elementInfo);
         }
 
         protected override void PrepareForRendering()
@@ -181,7 +181,7 @@ namespace SiliconStudio.Paradox.Graphics
             public Vector4 UnitXWorld;
             public Vector4 UnitYWorld;
             public RectangleF Source;
-            public Color Color;
+            public Color4 Color;
             public SwizzleMode Swizzle;
         }
     }

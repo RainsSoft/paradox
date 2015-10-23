@@ -42,7 +42,7 @@ namespace SiliconStudio.Paradox.UI.Controls
 
         public ModalElement()
         {
-            OverlayColorInternal = new Color(0, 0, 0, 0.4f);
+            OverlayColorInternal = new Color(0, 0, 0, 0.6f);
             DrawLayerNumber += 1; // (overlay)
             VerticalAlignment = VerticalAlignment.Center;
             HorizontalAlignment = HorizontalAlignment.Center;
@@ -96,7 +96,7 @@ namespace SiliconStudio.Paradox.UI.Controls
             var virtualResolution = LayoutingContext.VirtualResolution;
             var worldmatrix = Matrix.Identity;
             
-            return Collision.RayIntersectsRectangle(ref ray, ref worldmatrix, ref virtualResolution, 2, out intersectionPoint);
+            return CollisionHelper.RayIntersectsRectangle(ref ray, ref worldmatrix, ref virtualResolution, 2, out intersectionPoint);
         }
     }
 }

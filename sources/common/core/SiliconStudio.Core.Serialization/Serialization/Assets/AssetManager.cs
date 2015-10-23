@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using SiliconStudio.Core.Diagnostics;
 using SiliconStudio.Core.IO;
+using SiliconStudio.Core.Reflection;
 using SiliconStudio.Core.Serialization.Contents;
 using SiliconStudio.Core.Storage;
 
@@ -110,6 +111,7 @@ namespace SiliconStudio.Core.Serialization.Assets
         /// <typeparam name="T">The content type.</typeparam>
         /// <param name="url">The URL to load from.</param>
         /// <param name="settings">The settings. If null, fallback to <see cref="AssetManagerLoaderSettings.Default" />.</param>
+        /// <remarks>If the asset is already loaded, it just increases the reference count of the asset and return the same instance.</remarks>
         /// <returns></returns>
         public T Load<T>(string url, AssetManagerLoaderSettings settings = null) where T : class
         {
@@ -123,6 +125,7 @@ namespace SiliconStudio.Core.Serialization.Assets
         /// <param name="url">The URL.</param>
         /// <param name="settings">The settings.</param>
         /// <returns></returns>
+        /// <remarks>If the asset is already loaded, it just increases the reference count of the asset and return the same instance.</remarks>
         /// <exception cref="System.ArgumentNullException">url</exception>
         public object Load(Type type, string url, AssetManagerLoaderSettings settings = null)
         {
@@ -175,6 +178,7 @@ namespace SiliconStudio.Core.Serialization.Assets
         /// <typeparam name="T">The content type.</typeparam>
         /// <param name="url">The URL to load from.</param>
         /// <param name="settings">The settings. If null, fallback to <see cref="AssetManagerLoaderSettings.Default" />.</param>
+        /// <remarks>If the asset is already loaded, it just increases the reference count of the asset and return the same instance.</remarks>
         /// <returns></returns>
         public Task<T> LoadAsync<T>(string url, AssetManagerLoaderSettings settings = null) where T : class
         {
@@ -187,6 +191,7 @@ namespace SiliconStudio.Core.Serialization.Assets
         /// <param name="type">The type.</param>
         /// <param name="url">The URL.</param>
         /// <param name="settings">The settings.</param>
+        /// <remarks>If the asset is already loaded, it just increases the reference count of the asset and return the same instance.</remarks>
         /// <returns></returns>
         public Task<object> LoadAsync(Type type, string url, AssetManagerLoaderSettings settings = null)
         {
@@ -199,6 +204,7 @@ namespace SiliconStudio.Core.Serialization.Assets
         /// <typeparam name="T">The type of asset to retrieve.</typeparam>
         /// <param name="url">The URL of the asset to retrieve.</param>
         /// <returns>The loaded asset, or <c>null</c> if the asset has not been loaded.</returns>
+        /// <remarks>This function does not increase the reference count on the asset.</remarks>
         public T Get<T>(string url)
         {
             return (T)Get(typeof(T), url);
@@ -210,6 +216,7 @@ namespace SiliconStudio.Core.Serialization.Assets
         /// <param name="type">The type of asset to retrieve.</param>
         /// <param name="url">The URL of the asset to retrieve.</param>
         /// <returns>The loaded asset, or <c>null</c> if the asset has not been loaded.</returns>
+        /// <remarks>This function does not increase the reference count on the asset.</remarks>
         public object Get(Type type, string url)
         {
             var reference = FindDeserializedObject(url, type);
@@ -398,6 +405,29 @@ namespace SiliconStudio.Core.Serialization.Assets
             SetAssetObject(assetReference, obj);
         }
 
+        internal ChunkHeader ReadChunkHeader(string url)
+        {
+            if (!FileProvider.FileExists(url))
+            {
+                HandleAssetNotFound(url);
+                return null;
+            }
+
+            using (var stream = FileProvider.OpenStream(url, VirtualFileMode.Open, VirtualFileAccess.Read))
+            {
+                // File does not exist
+                // TODO/Benlitz: Add a log entry for that, it's not expected to happen
+                if (stream == null)
+                    return null;
+
+                Type headerObjType = null;
+
+                // Read header
+                var streamReader = new BinarySerializationReader(stream);
+                return ChunkHeader.Read(streamReader);
+            }
+        }
+
         private object DeserializeObject(Queue<DeserializeOperation> serializeOperations, AssetReference parentAssetReference, string url, Type objType, object obj, AssetManagerLoaderSettings settings)
         {
             // Try to find already loaded object
@@ -440,7 +470,7 @@ namespace SiliconStudio.Core.Serialization.Assets
                     var chunkHeader = ChunkHeader.Read(streamReader);
                     if (chunkHeader != null)
                     {
-                        headerObjType = Type.GetType(chunkHeader.Type);
+                        headerObjType = AssemblyRegistry.GetType(chunkHeader.Type);
                     }
 
                     // Find serializer
@@ -661,7 +691,7 @@ namespace SiliconStudio.Core.Serialization.Assets
         // TODO: Replug this when an asset is not found?
         private static void HandleAssetNotFound(string url)
         {
-            var errorMessage = string.Format("The asset '{0}' does not exist. Path should be 'Subfolder/AssetName'", url);
+            var errorMessage = $"The asset '{url}' could not be found. Asset path should be 'MyFolder/MyAssetName'. Check that the path is correct and that the asset has been included into the build.";
 
             // If a debugger is attached, throw an exception (we do that instead of Debugger.Break so that user can easily ignore this specific type of exception)
             if (Debugger.IsAttached)

@@ -7,40 +7,6 @@ using SiliconStudio.Paradox.Engine;
 
 namespace SiliconStudio.Paradox.Physics
 {
-    [DataContract("PhysicsSkinnedElementBase")]
-    [Display(40, "PhysicsSkinnedElementBase")]
-    public abstract class PhysicsSkinnedElementBase : PhysicsElementBase
-    {
-        private string linkedBoneName;
-
-        /// <summary>
-        /// Gets or sets the link (usually a bone).
-        /// </summary>
-        /// <value>
-        /// The mesh's linked bone name
-        /// </value>
-        /// <userdoc>
-        /// In the case of skinned mesh this must be the bone node name linked with this element.
-        /// </userdoc>
-        [DataMember(50)]
-        public string LinkedBoneName
-        {
-            get
-            {
-                return linkedBoneName;
-            }
-            set
-            {
-                if (InternalCollider != null)
-                {
-                    throw new Exception("Cannot change LinkedBoneName when the entity is already in the scene.");
-                }
-
-                linkedBoneName = value;
-            }
-        }
-    }
-
     [DataContract("PhysicsElementBase")]
     [Display(40, "PhysicsElementBase")]
     public abstract class PhysicsElementBase
@@ -95,7 +61,7 @@ namespace SiliconStudio.Paradox.Physics
         /// <userdoc>
         /// The reference to the collider Shape of this element.
         /// </userdoc>
-        [DataMember(100)]
+        [DataMember(200)]
         [Category]
         public TrackingCollection<IInlineColliderShapeDesc> ColliderShapes { get; private set; }
 
@@ -108,8 +74,6 @@ namespace SiliconStudio.Paradox.Physics
         [DataMemberIgnore]
         public bool CanScaleShape { get; private set; }
 
-        private CollisionFilterGroups collisionGroup;
-
         /// <summary>
         /// Gets or sets the collision group.
         /// </summary>
@@ -117,27 +81,10 @@ namespace SiliconStudio.Paradox.Physics
         /// The collision group.
         /// </value>
         /// <userdoc>
-        /// The collision group of this element, default is DefaultFilter.
+        /// The collision group of this element, default is DefaultFilter. Cannot change during run-time.
         /// </userdoc>
         [DataMember(30)]
-        public CollisionFilterGroups CollisionGroup
-        {
-            get
-            {
-                return collisionGroup;
-            }
-            set
-            {
-                if (InternalCollider != null)
-                {
-                    throw new Exception("Cannot change CollisionGroup when the entity is already in the scene.");
-                }
-
-                collisionGroup = value;
-            }
-        }
-
-        private CollisionFilterGroupFlags canCollideWith;
+        public CollisionFilterGroups CollisionGroup { get; set; }
 
         /// <summary>
         /// Gets or sets the can collide with.
@@ -146,23 +93,194 @@ namespace SiliconStudio.Paradox.Physics
         /// The can collide with.
         /// </value>
         /// <userdoc>
-        /// Which collider groups this element can collide with, when nothing is selected it will collide with all groups.
+        /// Which collider groups this element can collide with, when nothing is selected it will collide with all groups. Cannot change during run-time.
         /// </userdoc>
         [DataMember(40)]
-        public CollisionFilterGroupFlags CanCollideWith
+        public CollisionFilterGroupFlags CanCollideWith { get; set; }
+
+        private bool processCollisions = true;
+
+        /// <summary>
+        /// Gets or sets if this element will store collisions
+        /// </summary>
+        /// <value>
+        /// true, false
+        /// </value>
+        /// <userdoc>
+        /// Unchecking this will help with performance, ideally if this entity has no need to access collisions information should be set to false
+        /// </userdoc>
+        [DataMember(45)]
+        public virtual bool ProcessCollisions
         {
             get
             {
-                return canCollideWith;
+                return InternalCollider?.ContactsAlwaysValid ?? processCollisions;
             }
             set
             {
                 if (InternalCollider != null)
                 {
-                    throw new Exception("Cannot change CanCollideWith when the entity is already in the scene.");
+                    InternalCollider.ContactsAlwaysValid = value;
                 }
+                else
+                {
+                    processCollisions = value;
+                }
+            }
+        }
 
-                canCollideWith = value;
+        private bool enabled = true;
+
+        /// <summary>
+        /// Gets or sets if this element is enabled in the physics engine
+        /// </summary>
+        /// <value>
+        /// true, false
+        /// </value>
+        /// <userdoc>
+        /// If this element is enabled in the physics engine
+        /// </userdoc>
+        [DataMember(50)]
+        public bool Enabled
+        {
+            get
+            {
+                return InternalCollider?.Enabled ?? enabled;
+            }
+            set
+            {
+                if (InternalCollider != null)
+                {
+                    InternalCollider.Enabled = value;
+                }
+                else
+                {
+                    enabled = value;
+                }
+            }
+        }
+
+        private bool canSleep = true;
+
+        /// <summary>
+        /// Gets or sets if this element can enter sleep state
+        /// </summary>
+        /// <value>
+        /// true, false
+        /// </value>
+        /// <userdoc>
+        /// If this element can enter sleep state and skip physics simulation while sleeping
+        /// </userdoc>
+        [DataMember(55)]
+        public bool CanSleep
+        {
+            get
+            {
+                return InternalCollider?.CanSleep ?? canSleep;
+            }
+            set
+            {
+                if (InternalCollider != null)
+                {
+                    InternalCollider.CanSleep = value;
+                }
+                else
+                {
+                    canSleep = value;
+                }
+            }
+        }
+
+        private float restitution;
+
+        /// <summary>
+        /// Gets or sets if this element restitution
+        /// </summary>
+        /// <value>
+        /// true, false
+        /// </value>
+        /// <userdoc>
+        /// This element restitution (can create bounce effects)
+        /// </userdoc>
+        [DataMember(60)]
+        public float Restitution
+        {
+            get
+            {
+                return InternalCollider?.Restitution ?? restitution;
+            }
+            set
+            {
+                if (InternalCollider != null)
+                {
+                    InternalCollider.Restitution = value;
+                }
+                else
+                {
+                    restitution = value;
+                }
+            }
+        }
+
+        private float friction = 0.5f;
+
+        /// <summary>
+        /// Gets or sets the friction of this element
+        /// </summary>
+        /// <value>
+        /// true, false
+        /// </value>
+        /// <userdoc>
+        /// The friction of this element
+        /// </userdoc>
+        [DataMember(65)]
+        public float Friction
+        {
+            get
+            {
+                return InternalCollider?.Friction ?? friction;
+            }
+            set
+            {
+                if (InternalCollider != null)
+                {
+                    InternalCollider.Friction = value;
+                }
+                else
+                {
+                    friction = value;
+                }
+            }
+        }
+
+        private float rollingFriction;
+
+        /// <summary>
+        /// Gets or sets the rolling friction of this element
+        /// </summary>
+        /// <value>
+        /// true, false
+        /// </value>
+        /// <userdoc>
+        /// The rolling friction of this element
+        /// </userdoc>
+        [DataMember(70)]
+        public float RollingFriction
+        {
+            get
+            {
+                return InternalCollider?.RollingFriction ?? rollingFriction;
+            }
+            set
+            {
+                if (InternalCollider != null)
+                {
+                    InternalCollider.RollingFriction = value;
+                }
+                else
+                {
+                    rollingFriction = value;
+                }
             }
         }
 
@@ -171,7 +289,7 @@ namespace SiliconStudio.Paradox.Physics
         internal Collider InternalCollider;
 
         [DataMemberIgnore]
-        public Collider Collider
+        public virtual Collider Collider
         {
             get
             {
@@ -185,14 +303,21 @@ namespace SiliconStudio.Paradox.Physics
             internal set
             {
                 InternalCollider = value;
+                //set possibly pre-set properties
+                ProcessCollisions = processCollisions;
+                Enabled = enabled;
+                CanSleep = canSleep;
+                Restitution = restitution;
+                Friction = friction;
+                RollingFriction = rollingFriction;
             }
         }
 
         [DataMemberIgnore]
-        public RigidBody RigidBody => (RigidBody)Collider;
+        public RigidBody RigidBody => Collider as RigidBody;
 
         [DataMemberIgnore]
-        public Character Character => (Character)Collider;
+        public Character Character => Collider as Character;
 
         internal Matrix BoneWorldMatrix;
         internal Matrix BoneWorldMatrixOut;
@@ -363,118 +488,42 @@ namespace SiliconStudio.Paradox.Physics
                 }
             }
 
-            try
+            CanScaleShape = true;
+
+            if (ColliderShapes.Count == 1) //single shape case
             {
-                CanScaleShape = true;
-
-                if (ColliderShapes.Count == 1) //single shape case
+                if (ColliderShapes[0] == null) return;
+                if (ColliderShapes[0].GetType() == typeof(ColliderShapeAssetDesc))
                 {
-                    if (ColliderShapes[0] != null)
-                    {
-                        if (ColliderShapes[0].GetType() == typeof(ColliderShapeAssetDesc))
-                        {
-                            CanScaleShape = false;
-                        }
-
-                        ColliderShape = CreateShape(ColliderShapes[0]);
-
-                        if (ColliderShape == null) return;
-
-                        ColliderShape.UpdateLocalTransformations();
-                    }
+                    CanScaleShape = false;
                 }
-                else if (ColliderShapes.Count > 1) //need a compound shape in this case
-                {
-                    var compound = new CompoundColliderShape();
-                    foreach (var desc in ColliderShapes)
-                    {
-                        if (desc != null)
-                        {
-                            if (desc.GetType() == typeof(ColliderShapeAssetDesc))
-                            {
-                                CanScaleShape = false;
-                            }
 
-                            var subShape = CreateShape(desc);
-                            if (subShape != null)
-                            {
-                                compound.AddChildShape(subShape);
-                            }
-                        }
+                ColliderShape = PhysicsColliderShape.CreateShape(ColliderShapes[0]);
+
+                ColliderShape?.UpdateLocalTransformations();
+            }
+            else if (ColliderShapes.Count > 1) //need a compound shape in this case
+            {
+                var compound = new CompoundColliderShape();
+                foreach (var desc in ColliderShapes)
+                {
+                    if (desc == null) continue;
+                    if (desc.GetType() == typeof(ColliderShapeAssetDesc))
+                    {
+                        CanScaleShape = false;
                     }
 
-                    ColliderShape = compound;
-
-                    ColliderShape.UpdateLocalTransformations();
-                }
-            }
-            catch (DllNotFoundException)
-            {
-                //during pre process and build process we often don't have the physics native engine running.
-            }
-        }
-
-        public ColliderShape CreateShape(IInlineColliderShapeDesc desc)
-        {
-            ColliderShape shape = null;
-
-            var shapeType = desc.GetType();
-            if (shapeType == typeof(BoxColliderShapeDesc))
-            {
-                var boxDesc = (BoxColliderShapeDesc)desc;
-                if (boxDesc.Is2D)
-                {
-                    shape = new Box2DColliderShape(new Vector2(boxDesc.Size.X, boxDesc.Size.Y)) { LocalOffset = boxDesc.LocalOffset, LocalRotation = boxDesc.LocalRotation };
-                }
-                else
-                {
-                    shape = new BoxColliderShape(boxDesc.Size) { LocalOffset = boxDesc.LocalOffset, LocalRotation = boxDesc.LocalRotation };
-                }
-            }
-            else if (shapeType == typeof(CapsuleColliderShapeDesc))
-            {
-                var capsuleDesc = (CapsuleColliderShapeDesc)desc;
-                shape = new CapsuleColliderShape(capsuleDesc.Is2D, capsuleDesc.Radius, capsuleDesc.Length, capsuleDesc.Orientation) { LocalOffset = capsuleDesc.LocalOffset, LocalRotation = capsuleDesc.LocalRotation };
-            }
-            else if (shapeType == typeof(CylinderColliderShapeDesc))
-            {
-                var cylinderDesc = (CylinderColliderShapeDesc)desc;
-                shape = new CylinderColliderShape(cylinderDesc.Height, cylinderDesc.Radius, cylinderDesc.Orientation) { LocalOffset = cylinderDesc.LocalOffset, LocalRotation = cylinderDesc.LocalRotation };
-            }
-            else if (shapeType == typeof(SphereColliderShapeDesc))
-            {
-                var sphereDesc = (SphereColliderShapeDesc)desc;
-                shape = new SphereColliderShape(sphereDesc.Is2D, sphereDesc.Radius) { LocalOffset = sphereDesc.LocalOffset };
-            }
-            else if (shapeType == typeof(StaticPlaneColliderShapeDesc))
-            {
-                var planeDesc = (StaticPlaneColliderShapeDesc)desc;
-                shape = new StaticPlaneColliderShape(planeDesc.Normal, planeDesc.Offset);
-            }
-            else if (shapeType == typeof(ColliderShapeAssetDesc))
-            {
-                var assetDesc = (ColliderShapeAssetDesc)desc;
-
-                if (assetDesc.Shape == null)
-                {
-                    return null;
+                    var subShape = PhysicsColliderShape.CreateShape(desc);
+                    if (subShape != null)
+                    {
+                        compound.AddChildShape(subShape);
+                    }
                 }
 
-                if (assetDesc.Shape.Shape == null)
-                {
-                    assetDesc.Shape.Shape = PhysicsColliderShape.Compose(assetDesc.Shape.Descriptions);
-                }
+                ColliderShape = compound;
 
-                shape = assetDesc.Shape.Shape;
+                ColliderShape.UpdateLocalTransformations();
             }
-
-            if (shape != null)
-            {
-                shape.Parent = null; //from now parent might change
-                shape.UpdateLocalTransformations();
-            }
-
-            return shape;
         }
 
         #endregion Utility

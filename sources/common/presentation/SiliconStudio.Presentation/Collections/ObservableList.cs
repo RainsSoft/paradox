@@ -1,5 +1,6 @@
 ﻿// Copyright (c) 2014 Silicon Studio Corp. (http://siliconstudio.co.jp)
 // This file is distributed under GPL v3. See LICENSE.md for details.
+
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -22,6 +23,11 @@ namespace SiliconStudio.Presentation.Collections
             list = new List<T>(collection);
         }
 
+        public ObservableList(int capacity)
+        {
+            list = new List<T>(capacity);
+        }
+
         public T this[int index]
         {
             get
@@ -37,9 +43,9 @@ namespace SiliconStudio.Presentation.Collections
             }
         }
 
-        public int Count { get { return list.Count; } }
+        public int Count => list.Count;
 
-        public bool IsReadOnly { get { return false; } }
+        public bool IsReadOnly => false;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -79,7 +85,7 @@ namespace SiliconStudio.Presentation.Collections
 
         public void Clear()
         {
-            bool raiseEvent = list.Count > 0;
+            var raiseEvent = list.Count > 0;
             list.Clear();
             if (raiseEvent)
             {
@@ -145,34 +151,26 @@ namespace SiliconStudio.Presentation.Collections
         /// <inheritdoc/>
         public override string ToString()
         {
-            return string.Format("{{ObservableList}} Count = {0}", Count);
+            return $"{{ObservableList}} Count = {Count}";
         }
 
         protected void OnCollectionChanged(NotifyCollectionChangedEventArgs arg)
         {
-            var handler = CollectionChanged;
-            if (handler != null)
-            {
-                handler(this, arg);
-            }
+            CollectionChanged?.Invoke(this, arg);
 
             switch (arg.Action)
             {
                 case NotifyCollectionChangedAction.Add:
                 case NotifyCollectionChangedAction.Remove:
                 case NotifyCollectionChangedAction.Reset:
-                    OnPropertyChanged(new PropertyChangedEventArgs("Count"));
+                    OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
                     break;
             }
         }
 
         protected void OnPropertyChanged(PropertyChangedEventArgs arg)
         {
-            var handler = PropertyChanged;
-            if (handler != null)
-            {
-                handler(this, arg);
-            }
+            PropertyChanged?.Invoke(this, arg);
         }
     }
 }

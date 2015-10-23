@@ -4,11 +4,8 @@ namespace SiliconStudio.Paradox.Physics
 {
     [DataContract("StaticColliderElement")]
     [Display(40, "Static Collider")]
-    public class StaticColliderElement : PhysicsElementBase, IPhysicsElement
+    public class StaticColliderElement : PhysicsTriggerElementBase, IPhysicsElement
     {
-        public override Types Type
-        {
-            get { return Types.StaticCollider; }
-        }
+        public override Types Type => Types.StaticCollider;
     }
 }

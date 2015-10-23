@@ -3,7 +3,7 @@
 
 using System;
 using System.Collections.Generic;
-
+using System.ComponentModel;
 using SiliconStudio.Core;
 using SiliconStudio.Core.Annotations;
 using SiliconStudio.Core.Mathematics;
@@ -22,16 +22,8 @@ namespace SiliconStudio.Paradox.Rendering.ProceduralModels
         protected PrimitiveProceduralModelBase()
         {
             MaterialInstance = new MaterialInstance();
+            UvScale = Vector2.One;
         }
-        /// <summary>
-        /// Gets the material instance.
-        /// </summary>
-        /// <value>The material instance.</value>
-        /// <userdoc>The reference material asset to use with this model.</userdoc>
-        [DataMember(500)]
-        [NotNull]
-        [Display("Material")]
-        public MaterialInstance MaterialInstance { get; private set; }
 
         public void SetMaterial(string name, Material material)
         {
@@ -40,6 +32,29 @@ namespace SiliconStudio.Paradox.Rendering.ProceduralModels
                 MaterialInstance.Material = material;
             }
         }
+
+        [DataMember(510)]
+        public Vector3 Scale = Vector3.One;
+
+        /// <summary>
+        /// Gets or sets the UV scale.
+        /// </summary>
+        /// <value>The UV scale</value>
+        /// <userdoc>The scale to apply to the UV coordinates of the shape. This can be used to tile a texture on it.</userdoc>
+        [DataMember(520)]
+        [DefaultValue(1.0f)]
+        [Display("UV Scale")]
+        public Vector2 UvScale { get; set; }
+
+        /// <summary>
+        /// Gets the material instance.
+        /// </summary>
+        /// <value>The material instance.</value>
+        /// <userdoc>The reference material asset to use with this model.</userdoc>
+        [DataMember(600)]
+        [NotNull]
+        [Display("Material")]
+        public MaterialInstance MaterialInstance { get; private set; }
 
         /// <inheritdoc/>
         [DataMemberIgnore]
@@ -57,6 +72,18 @@ namespace SiliconStudio.Paradox.Rendering.ProceduralModels
             if (data.Vertices.Length == 0)
             {
                 throw new InvalidOperationException("Invalid GeometricPrimitive [{0}]. Expecting non-zero Vertices array");
+            }
+
+            //Scale if necessary
+            if (Scale != Vector3.One)
+            {
+                var inverseMatrix = Matrix.Scaling(Scale);
+                inverseMatrix.Invert();
+                for (var index = 0; index < data.Vertices.Length; index++)
+                {
+                    data.Vertices[index].Position *= Scale;
+                    Vector3.TransformCoordinate(ref data.Vertices[index].Normal, ref inverseMatrix, out data.Vertices[index].Normal);
+                }
             }
 
             var boundingBox = BoundingBox.Empty;

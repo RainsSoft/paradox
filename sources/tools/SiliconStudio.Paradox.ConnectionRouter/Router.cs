@@ -18,7 +18,7 @@ namespace SiliconStudio.Paradox.ConnectionRouter
     {
         private static readonly Logger Log = GlobalLogger.GetLogger("Router");
 
-        private Dictionary<string, TaskCompletionSource<SimpleSocket>> registeredServices = new Dictionary<string, TaskCompletionSource<SimpleSocket>>();
+        private Dictionary<string, TaskCompletionSource<Service>> registeredServices = new Dictionary<string, TaskCompletionSource<Service>>();
         private Dictionary<Guid, TaskCompletionSource<SimpleSocket>> pendingServers = new Dictionary<Guid, TaskCompletionSource<SimpleSocket>>();
 
         public void Listen(int port)
@@ -45,43 +45,46 @@ namespace SiliconStudio.Paradox.ConnectionRouter
         private SimpleSocket CreateSocketContext()
         {
             var socketContext = new SimpleSocket();
-            socketContext.Connected = async (clientSocketContext) =>
+            socketContext.Connected = (clientSocketContext) =>
             {
-                try
+                Task.Run(async () =>
                 {
-                    // Routing
-                    var routerMessage = (RouterMessage)await clientSocketContext.ReadStream.ReadInt16Async();
-
-                    Log.Info("Client {0}:{1} connected, with message {2}", clientSocketContext.RemoteAddress, clientSocketContext.RemotePort, routerMessage);
-
-                    switch (routerMessage)
+                    try
                     {
-                        case RouterMessage.ServiceProvideServer:
+                        // Routing
+                        var routerMessage = (RouterMessage)await clientSocketContext.ReadStream.ReadInt16Async();
+
+                        Log.Info("Client {0}:{1} connected, with message {2}", clientSocketContext.RemoteAddress, clientSocketContext.RemotePort, routerMessage);
+
+                        switch (routerMessage)
                         {
-                            await HandleMessageServiceProvideServer(clientSocketContext);
-                            break;
+                            case RouterMessage.ServiceProvideServer:
+                            {
+                                await HandleMessageServiceProvideServer(clientSocketContext);
+                                break;
+                            }
+                            case RouterMessage.ServerStarted:
+                            {
+                                await HandleMessageServerStarted(clientSocketContext);
+                                break;
+                            }
+                            case RouterMessage.ClientRequestServer:
+                            {
+                                await HandleMessageClientRequestServer(clientSocketContext);
+                                break;
+                            }
+                            default:
+                                throw new ArgumentOutOfRangeException(string.Format("Router: Unknown message: {0}", routerMessage));
                         }
-                        case RouterMessage.ServerStarted:
-                        {
-                            await HandleMessageServerStarted(clientSocketContext);
-                            break;
-                        }
-                        case RouterMessage.ClientRequestServer:
-                        {
-                            await HandleMessageClientRequestServer(clientSocketContext);
-                            break;
-                        }
-                        default:
-                            throw new ArgumentOutOfRangeException(string.Format("Router: Unknown message: {0}", routerMessage));
                     }
-                }
-                catch (Exception e)
-                {
-                    // TODO: Ideally, separate socket-related error messages (disconnection) from real errors
-                    // Unfortunately, it seems WinRT returns Exception, so it seems we can't filter with SocketException/IOException only?
-                    Log.Info("Client {0}:{1} disconnected with exception: {2}", clientSocketContext.RemoteAddress, clientSocketContext.RemotePort, e.Message);
-                    clientSocketContext.Dispose();
-                }
+                    catch (Exception e)
+                    {
+                        // TODO: Ideally, separate socket-related error messages (disconnection) from real errors
+                        // Unfortunately, it seems WinRT returns Exception, so it seems we can't filter with SocketException/IOException only?
+                        Log.Info("Client {0}:{1} disconnected with exception: {2}", clientSocketContext.RemoteAddress, clientSocketContext.RemotePort, e.Message);
+                        clientSocketContext.Dispose();
+                    }
+                });
             };
 
             return socketContext;
@@ -175,13 +178,13 @@ namespace SiliconStudio.Paradox.ConnectionRouter
             RouterHelper.ParseUrl(url, out urlSegments, out urlParameters);
 
             // Find a matching server
-            TaskCompletionSource<SimpleSocket> serviceTCS;
+            TaskCompletionSource<Service> serviceTCS;
 
             lock (registeredServices)
             {
                 if (!registeredServices.TryGetValue(urlWithoutParameters, out serviceTCS))
                 {
-                    serviceTCS = new TaskCompletionSource<SimpleSocket>();
+                    serviceTCS = new TaskCompletionSource<Service>();
                     registeredServices.Add(urlWithoutParameters, serviceTCS);
                 }
 
@@ -218,11 +221,19 @@ namespace SiliconStudio.Paradox.ConnectionRouter
                 pendingServers.Add(guid, serverSocketTCS);
             }
 
-            // Notify service that we want it to establish back a new connection to us for this client
-            await service.WriteStream.WriteInt16Async((short)RouterMessage.ServiceRequestServer);
-            await service.WriteStream.WriteStringAsync(url);
-            await service.WriteStream.WriteGuidAsync(guid);
-            await service.WriteStream.FlushAsync();
+            await service.SendLock.WaitAsync();
+            try
+            {
+                // Notify service that we want it to establish back a new connection to us for this client
+                await service.Socket.WriteStream.WriteInt16Async((short)RouterMessage.ServiceRequestServer);
+                await service.Socket.WriteStream.WriteStringAsync(url);
+                await service.Socket.WriteStream.WriteGuidAsync(guid);
+                await service.Socket.WriteStream.FlushAsync();
+            }
+            finally
+            {
+                service.SendLock.Release();
+            }
 
             // Should answer within 2 sec
             var ct = new CancellationTokenSource(2000);
@@ -293,17 +304,17 @@ namespace SiliconStudio.Paradox.ConnectionRouter
         private async Task HandleMessageServiceProvideServer(SimpleSocket clientSocket)
         {
             var url = await clientSocket.ReadStream.ReadStringAsync();
-            TaskCompletionSource<SimpleSocket> service;
+            TaskCompletionSource<Service> service;
 
             lock (registeredServices)
             {
                 if (!registeredServices.TryGetValue(url, out service))
                 {
-                    service = new TaskCompletionSource<SimpleSocket>();
+                    service = new TaskCompletionSource<Service>();
                     registeredServices.Add(url, service);
                 }
 
-                service.TrySetResult(clientSocket);
+                service.TrySetResult(new Service(clientSocket));
             }
 
             // TODO: Handle server disconnections
@@ -320,6 +331,17 @@ namespace SiliconStudio.Paradox.ConnectionRouter
                     throw new IOException("Socket closed");
                 await target.WriteStream.WriteAsync(buffer, 0, bufferLength);
                 await target.WriteStream.FlushAsync();
+            }
+        }
+
+        private class Service
+        {
+            public readonly SimpleSocket Socket;
+            public readonly SemaphoreSlim SendLock = new SemaphoreSlim(1);
+
+            public Service(SimpleSocket socket)
+            {
+                Socket = socket;
             }
         }
     }

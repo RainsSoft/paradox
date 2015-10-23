@@ -19,7 +19,6 @@ namespace SiliconStudio.Paradox.Assets.Model
     [DataContract("Model")]
     [AssetDescription(FileExtension, false)]
     [AssetCompiler(typeof(ModelAssetCompiler))]
-    [ThumbnailCompiler(PreviewerCompilerNames.ModelThumbnailCompilerQualifiedName, true, Priority = 10000)]
     [Display(190, "Model", "A 3D model")]
     [AssetFormatVersion(2)]
     [AssetUpgrader(0, 1, 2, typeof(Upgrader))]
@@ -69,7 +68,7 @@ namespace SiliconStudio.Paradox.Assets.Model
         /// Otherwise, all the meshes of model are merged and the node information is lost.
         /// Nodes should be preserved in order to be animated or linked to entities.
         /// </userdoc>
-        [DataMember(50), DiffUseAsset2]
+        [DataMember(50), DiffMember(Diff3ChangeType.MergeFromAsset2)]
         public List<NodeInformation> Nodes { get; private set; }
 
         /// <summary>
@@ -159,7 +158,7 @@ namespace SiliconStudio.Paradox.Assets.Model
 
         class Upgrader : AssetUpgraderBase
         {
-            protected override void UpgradeAsset(int currentVersion, int targetVersion, ILogger log, dynamic asset)
+            protected override void UpgradeAsset(AssetMigrationContext context, int currentVersion, int targetVersion, dynamic asset, PackageLoadingAssetFile assetFile)
             {
                 foreach (var modelMaterial in asset.Materials)
                 {

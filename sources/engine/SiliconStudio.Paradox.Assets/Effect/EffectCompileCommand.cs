@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using SiliconStudio.Assets;
 using SiliconStudio.Assets.Compiler;
 using SiliconStudio.BuildEngine;
 using SiliconStudio.Core;
@@ -27,23 +28,19 @@ namespace SiliconStudio.Paradox.Assets.Effect
         private readonly UDirectory baseUrl;
         private string effectName;
         private CompilerParameters compilerParameters;
+        private readonly Package package;
         private static Dictionary<string, int> PermutationCount = new Dictionary<string, int>();
 
-        public EffectCompileCommand(AssetCompilerContext context, UDirectory baseUrl, string effectName, CompilerParameters compilerParameters)
+        public EffectCompileCommand(AssetCompilerContext context, UDirectory baseUrl, string effectName, CompilerParameters compilerParameters, Package package)
         {
             this.context = context;
             this.baseUrl = baseUrl;
             this.effectName = effectName;
             this.compilerParameters = compilerParameters;
+            this.package = package;
         }
 
-        public override string Title
-        {
-            get
-            {
-                return string.Format("EffectCompile [{0}]", effectName);
-            }
-        }
+        public override string Title => $"EffectCompile [{effectName}]";
 
         protected override void ComputeParameterHash(BinarySerializationWriter writer)
         {
@@ -75,11 +72,11 @@ namespace SiliconStudio.Paradox.Assets.Effect
                 permutationCount++;
                 PermutationCount[effectName] = permutationCount;
             }
-            commandContext.Logger.Info("Trying permutation #{0} for effect [{1}]: \n{2}", permutationCount, effectName, compilerParameters.ToStringDetailed());
+            commandContext.Logger.Verbose("Trying permutation #{0} for effect [{1}]: \n{2}", permutationCount, effectName, compilerParameters.ToStringDetailed());
 
             var compilerResults = compiler.Compile(source, compilerParameters);
 
-            // Copy logs and if there are errors, exit directlry
+            // Copy logs and if there are errors, exit directly
             compilerResults.CopyTo(commandContext.Logger);
             if (compilerResults.HasErrors)
             {
@@ -104,11 +101,22 @@ namespace SiliconStudio.Paradox.Assets.Effect
             // Generate sourcecode if configured
             if (compilerParameters.ContainsKey(EffectSourceCodeKeys.Enable))
             {
-                var outputDirectory = UPath.Combine(context.Package.RootDirectory, baseUrl);
-                var outputClassFile = effectName + ".bytecode." + compilerParameters.Platform + "." + compilerParameters.Profile + ".cs";
+                var outputDirectory = UPath.Combine(package.RootDirectory, baseUrl);
+
+                var fieldName = compilerParameters.Get(EffectSourceCodeKeys.FieldName);
+                if (fieldName.StartsWith("binary"))
+                {
+                    fieldName = fieldName.Substring("binary".Length);
+                    if (char.IsUpper(fieldName[0]))
+                    {
+                        fieldName = char.ToLower(fieldName[0]) + fieldName.Substring(1);
+                    }
+                }
+
+                var outputClassFile = effectName + "." + fieldName + "." + compilerParameters.Platform + "." + compilerParameters.Profile + ".cs";
                 var fullOutputClassFile = Path.Combine(outputDirectory.ToWindowsPath(), outputClassFile);
 
-                commandContext.Logger.Info("Writing shader bytecode to .cs source [{0}]", fullOutputClassFile);
+                commandContext.Logger.Verbose("Writing shader bytecode to .cs source [{0}]", fullOutputClassFile);
                 using (var stream = new FileStream(fullOutputClassFile, FileMode.Create, FileAccess.Write, FileShare.Write))
                     EffectByteCodeToSourceCodeWriter.Write(effectName, compilerParameters, compilerResults.Bytecode.WaitForResult().Bytecode, new StreamWriter(stream, System.Text.Encoding.UTF8));
             }

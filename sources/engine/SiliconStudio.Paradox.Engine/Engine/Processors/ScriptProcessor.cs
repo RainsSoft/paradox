@@ -14,7 +14,7 @@ namespace SiliconStudio.Paradox.Engine.Processors
     {
         private ScriptSystem scriptSystem;
 
-        public ScriptProcessor() : base(new PropertyKey[] { ScriptComponent.Key })
+        public ScriptProcessor() : base(ScriptComponent.Key)
         {
             // Script processor always running before others
             Order = -100000;
@@ -24,6 +24,11 @@ namespace SiliconStudio.Paradox.Engine.Processors
         protected override AssociatedData GenerateAssociatedData(Entity entity)
         {
             return new AssociatedData(entity.Get<ScriptComponent>());
+        }
+
+        protected override bool IsAssociatedDataValid(Entity entity, AssociatedData associatedData)
+        {
+            return entity.Get(ScriptComponent.Key) == associatedData.Component;
         }
 
         protected internal override void OnSystemAdd()

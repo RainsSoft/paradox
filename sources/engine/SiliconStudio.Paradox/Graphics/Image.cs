@@ -168,6 +168,14 @@ namespace SiliconStudio.Paradox.Graphics
         }
 
         /// <summary>
+        /// Reset the buffer (by default it is not cleared)
+        /// </summary>
+        public void Clear()
+        {
+            Utilities.ClearMemory(buffer, 0, totalSizeInBytes);
+        }
+
+        /// <summary>
         /// Gets the mipmap description of this instance for the specified mipmap level.
         /// </summary>
         /// <param name="mipmap">The mipmap.</param>
@@ -472,11 +480,12 @@ namespace SiliconStudio.Paradox.Graphics
         /// </summary>
         /// <param name="dataBuffer">Pointer to an unmanaged memory. If <see cref="makeACopy"/> is false, this buffer must be allocated with <see cref="Utilities.AllocateMemory"/>.</param>
         /// <param name="makeACopy">True to copy the content of the buffer to a new allocated buffer, false otherwhise.</param>
+        /// <param name="loadAsSRGB">Indicate if the image should be loaded as an sRGB texture</param>
         /// <returns>An new image.</returns>
         /// <remarks>If <see cref="makeACopy"/> is set to false, the returned image is now the holder of the unmanaged pointer and will release it on Dispose. </remarks>
-        public static Image Load(DataPointer dataBuffer, bool makeACopy = false)
+        public static Image Load(DataPointer dataBuffer, bool makeACopy = false, bool loadAsSRGB = true)
         {
-            return Load(dataBuffer.Pointer, dataBuffer.Size, makeACopy);
+            return Load(dataBuffer.Pointer, dataBuffer.Size, makeACopy, loadAsSRGB);
         }
 
         /// <summary>
@@ -485,20 +494,22 @@ namespace SiliconStudio.Paradox.Graphics
         /// <param name="dataPointer">Pointer to an unmanaged memory. If <see cref="makeACopy"/> is false, this buffer must be allocated with <see cref="Utilities.AllocateMemory"/>.</param>
         /// <param name="dataSize">Size of the unmanaged buffer.</param>
         /// <param name="makeACopy">True to copy the content of the buffer to a new allocated buffer, false otherwise.</param>
+        /// <param name="loadAsSRGB">Indicate if the image should be loaded as an sRGB texture</param>
         /// <returns>An new image.</returns>
         /// <remarks>If <see cref="makeACopy"/> is set to false, the returned image is now the holder of the unmanaged pointer and will release it on Dispose. </remarks>
-        public static Image Load(IntPtr dataPointer, int dataSize, bool makeACopy = false)
+        public static Image Load(IntPtr dataPointer, int dataSize, bool makeACopy = false, bool loadAsSRGB = true)
         {
-            return Load(dataPointer, dataSize, makeACopy, null);
+            return Load(dataPointer, dataSize, makeACopy, null, loadAsSRGB);
         }
 
         /// <summary>
         /// Loads an image from a managed buffer.
         /// </summary>
         /// <param name="buffer">Reference to a managed buffer.</param>
+        /// <param name="loadAsSRGB">Indicate if the image should be loaded as an sRGB texture</param>
         /// <returns>An new image.</returns>
         /// <remarks>This method support the following format: <c>dds, bmp, jpg, png, gif, tiff, wmp, tga</c>.</remarks>
-        public unsafe static Image Load(byte[] buffer)
+        public unsafe static Image Load(byte[] buffer, bool loadAsSRGB = true)
         {
             if (buffer == null)
                 throw new ArgumentNullException("buffer");
@@ -509,12 +520,12 @@ namespace SiliconStudio.Paradox.Graphics
             if (size > (85 * 1024))
             {
                 var handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
-                return Load(handle.AddrOfPinnedObject(), size, false, handle);
+                return Load(handle.AddrOfPinnedObject(), size, false, handle, loadAsSRGB);
             }
 
             fixed (void* pbuffer = buffer)
             {
-                return Load((IntPtr) pbuffer, size, true);
+                return Load((IntPtr) pbuffer, size, true, loadAsSRGB);
             }
         }
 
@@ -522,13 +533,14 @@ namespace SiliconStudio.Paradox.Graphics
         /// Loads the specified image from a stream.
         /// </summary>
         /// <param name="imageStream">The image stream.</param>
+        /// <param name="loadAsSRGB">Indicate if the image should be loaded as an sRGB texture. If false, the image is loaded in its default format.</param>
         /// <returns>An new image.</returns>
         /// <remarks>This method support the following format: <c>dds, bmp, jpg, png, gif, tiff, wmp, tga</c>.</remarks>
-        public static Image Load(Stream imageStream)
+        public static Image Load(Stream imageStream, bool loadAsSRGB = false)
         {
             if (imageStream == null) throw new ArgumentNullException("imageStream");
             // Read the whole stream into memory.
-            return Load(Utilities.ReadStream(imageStream));
+            return Load(Utilities.ReadStream(imageStream), loadAsSRGB);
         }
 
         /// <summary>
@@ -641,9 +653,10 @@ namespace SiliconStudio.Paradox.Graphics
         /// <param name="dataSize">Size of the data.</param>
         /// <param name="makeACopy">if set to <c>true</c> [make A copy].</param>
         /// <param name="handle">The handle.</param>
+        /// <param name="loadAsSRGB">Indicate if the image should be loaded as an sRGB texture</param>
         /// <returns></returns>
         /// <exception cref="System.NotSupportedException"></exception>
-        private static Image Load(IntPtr dataPointer, int dataSize, bool makeACopy, GCHandle? handle)
+        private static Image Load(IntPtr dataPointer, int dataSize, bool makeACopy, GCHandle? handle, bool loadAsSRGB = true)
         {
             foreach (var loadSaveDelegate in loadSaveDelegates)
             {
@@ -652,6 +665,9 @@ namespace SiliconStudio.Paradox.Graphics
                     var image = loadSaveDelegate.Load(dataPointer, dataSize, makeACopy, handle);
                     if (image != null)
                     {
+                        if(loadAsSRGB)
+                            image.Description.Format = image.Description.Format.ToSRgb();
+
                         return image;
                     }
                 }
@@ -840,12 +856,17 @@ namespace SiliconStudio.Paradox.Graphics
                         bpb = 8;
                         break;
                     case PixelFormat.PVRTC_4bpp_RGB:
+                    case PixelFormat.PVRTC_4bpp_RGB_SRgb:
                     case PixelFormat.PVRTC_4bpp_RGBA:
+                    case PixelFormat.PVRTC_4bpp_RGBA_SRgb:
                     case PixelFormat.PVRTC_II_4bpp:
                         minWidth = 8;
                         minHeight = 8;
                         break;
+                    case PixelFormat.PVRTC_2bpp_RGB:
+                    case PixelFormat.PVRTC_2bpp_RGB_SRgb:
                     case PixelFormat.PVRTC_2bpp_RGBA:
+                    case PixelFormat.PVRTC_2bpp_RGBA_SRgb:
                     case PixelFormat.PVRTC_II_2bpp:
                         minWidth = 16;
                         minHeight = 8;

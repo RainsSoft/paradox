@@ -9,6 +9,7 @@ using System.Text;
 using SiliconStudio.Core;
 using SiliconStudio.Core.Diagnostics;
 using SiliconStudio.Core.Mathematics;
+using SiliconStudio.Core.Serialization;
 using SiliconStudio.Paradox.Graphics.Font;
 
 using Color = SiliconStudio.Core.Mathematics.Color;
@@ -20,6 +21,7 @@ namespace SiliconStudio.Paradox.Graphics
     /// SpriteFont to use with <see cref="SpriteBatch"/>. See <see cref="SpriteFont"/> to learn how to use it.
     /// </summary>
     [DataContract]
+    [DataSerializerGlobal(typeof(ReferenceSerializer<SpriteFont>), Profile = "Asset")]
     public class SpriteFont : ComponentBase
     {
         public static readonly Logger Logger = GlobalLogger.GetLogger("SpriteFont");
@@ -625,7 +627,7 @@ namespace SiliconStudio.Paradox.Graphics
         /// </summary>
         internal struct InternalDrawCommand
         {
-            public InternalDrawCommand(SpriteBatch spriteBatch, ref Vector2 fontSize, ref Vector2 position, ref Color color, float rotation, ref Vector2 origin, ref Vector2 scale, SpriteEffects spriteEffects, float depth)
+            public InternalDrawCommand(SpriteBatch spriteBatch, ref Vector2 fontSize, ref Vector2 position, ref Color4 color, float rotation, ref Vector2 origin, ref Vector2 scale, SpriteEffects spriteEffects, float depth)
             {
                 SpriteBatch = spriteBatch;
                 Position = position;
@@ -644,7 +646,7 @@ namespace SiliconStudio.Paradox.Graphics
 
             public Vector2 Position;
 
-            public Color Color;
+            public Color4 Color;
 
             public float Rotation;
 
