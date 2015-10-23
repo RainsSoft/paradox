@@ -16,8 +16,8 @@ using Buffer = SiliconStudio.Paradox.Graphics.Buffer;
 
 namespace SiliconStudio.Paradox.Rendering.Images
 {
-    internal static partial class GammaTransformShaderKeys
+    internal static partial class ToneMapHejl2OperatorShaderKeys
     {
-        public static readonly ParameterKey<float> Gamma = ParameterKeys.New<float>(2.2333333f);
+        public static readonly ParameterKey<float> WhitePoint = ParameterKeys.New<float>(5.0f);
     }
 }

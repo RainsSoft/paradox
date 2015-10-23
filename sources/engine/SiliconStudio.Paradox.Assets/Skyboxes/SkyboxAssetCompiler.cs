@@ -22,6 +22,8 @@ namespace SiliconStudio.Paradox.Assets.Skyboxes
             result.BuildSteps = new AssetBuildStep(AssetItem);
             result.ShouldWaitForPreviousBuilds = true;
 
+            var colorSpace = context.GetColorSpace();
+
             // build the textures for windows (needed for skybox compilation)
             foreach (var dependency in asset.Model.GetDependencies())
             {
@@ -39,7 +41,7 @@ namespace SiliconStudio.Paradox.Assets.Skyboxes
                     var gameSettingsAsset = context.GetGameSettingsAsset();
 
                     // Create and add the texture command.
-                    var textureParameters = new TextureConvertParameters(assetSource, textureAsset, PlatformType.Windows, GraphicsPlatform.Direct3D11, GraphicsProfile.Level_10_0, gameSettingsAsset.TextureQuality);
+                    var textureParameters = new TextureConvertParameters(assetSource, textureAsset, PlatformType.Windows, GraphicsPlatform.Direct3D11, GraphicsProfile.Level_10_0, gameSettingsAsset.TextureQuality, colorSpace);
                     result.BuildSteps.Add(new AssetBuildStep(AssetItem) { new TextureAssetCompiler.TextureConvertCommand(textureUrl, textureParameters) });
                 }
             }

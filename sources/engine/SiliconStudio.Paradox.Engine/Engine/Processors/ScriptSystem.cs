@@ -23,11 +23,11 @@ namespace SiliconStudio.Paradox.Engine.Processors
         /// <summary>
         /// Contains all currently executed scripts
         /// </summary>
-        private HashSet<Script> registeredScripts = new HashSet<Script>();
-        private HashSet<Script> scriptsToStart = new HashSet<Script>();
-        private HashSet<SyncScript> syncScripts = new HashSet<SyncScript>();
-        private List<Script> scriptsToStartCopy = new List<Script>();
-        private List<SyncScript> syncScriptsCopy = new List<SyncScript>();
+        private readonly HashSet<Script> registeredScripts = new HashSet<Script>();
+        private readonly HashSet<Script> scriptsToStart = new HashSet<Script>();
+        private readonly HashSet<SyncScript> syncScripts = new HashSet<SyncScript>();
+        private readonly List<Script> scriptsToStartCopy = new List<Script>();
+        private readonly List<SyncScript> syncScriptsCopy = new List<SyncScript>();
 
         /// <summary>
         /// Gets the scheduler.
@@ -52,6 +52,10 @@ namespace SiliconStudio.Paradox.Engine.Processors
         {
             scriptsToStartCopy.Clear();
             scriptsToStartCopy.AddRange(scriptsToStart);
+            scriptsToStart.Clear();
+
+            // Sort by priority
+            scriptsToStartCopy.Sort(PriorityScriptComparer.Default);
 
             // Start new scripts
             foreach (var script in scriptsToStartCopy)
@@ -74,10 +78,10 @@ namespace SiliconStudio.Paradox.Engine.Processors
                 var asyncScript = script as AsyncScript;
                 if (asyncScript != null)
                 {
-                    script.MicroThread = AddTask(asyncScript.Execute);
+                    asyncScript.MicroThread = AddTask(asyncScript.Execute);
+                    asyncScript.MicroThread.Priority = asyncScript.Priority;
                 }
             }
-            scriptsToStart.Clear();
 
             // Run current micro threads
             Scheduler.Run();
@@ -91,6 +95,9 @@ namespace SiliconStudio.Paradox.Engine.Processors
 
             syncScriptsCopy.Clear();
             syncScriptsCopy.AddRange(syncScripts);
+
+            // Sort by priority
+            syncScriptsCopy.Sort(PriorityScriptComparer.Default);
 
             // Execute sync scripts
             foreach (var script in syncScriptsCopy)
@@ -221,6 +228,16 @@ namespace SiliconStudio.Paradox.Engine.Processors
             }
 
             registeredScripts.Remove(script);
+        }
+
+        class PriorityScriptComparer : IComparer<Script>
+        {
+            public static readonly PriorityScriptComparer Default = new PriorityScriptComparer();
+
+            public int Compare(Script x, Script y)
+            {
+                return x.Priority.CompareTo(y.Priority);
+            }
         }
     }
 }

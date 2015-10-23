@@ -40,6 +40,8 @@ namespace SiliconStudio.Paradox.Assets.Sprite
             // create the registry containing the sprite assets texture index association
             var imageToTextureUrl = new Dictionary<SpriteInfo, string>();
 
+            var colorSpace = context.GetColorSpace();
+
             // create and add import texture commands
             if (asset.Sprites != null && !asset.Packing.Enabled)
             {
@@ -76,7 +78,7 @@ namespace SiliconStudio.Paradox.Assets.Sprite
                     result.BuildSteps.Add(
                         new TextureAssetCompiler.TextureConvertCommand(
                             SpriteSheetAsset.BuildTextureUrl(urlInStorage, i),
-                            new TextureConvertParameters(assetSource, textureAsset, context.Platform, context.GetGraphicsPlatform(), gameSettingsAsset.DefaultGraphicsProfile, gameSettingsAsset.TextureQuality)));
+                            new TextureConvertParameters(assetSource, textureAsset, context.Platform, context.GetGraphicsPlatform(), gameSettingsAsset.DefaultGraphicsProfile, gameSettingsAsset.TextureQuality, colorSpace)));
                 }
 
                 result.BuildSteps.Add(new WaitBuildStep()); // wait the textures to be imported
@@ -84,7 +86,7 @@ namespace SiliconStudio.Paradox.Assets.Sprite
 
             if (!result.HasErrors)
             {
-                var parameters = new SpriteSheetParameters(asset, imageToTextureUrl, context.Platform, context.GetGraphicsPlatform(), gameSettingsAsset.DefaultGraphicsProfile, gameSettingsAsset.TextureQuality);
+                var parameters = new SpriteSheetParameters(asset, imageToTextureUrl, context.Platform, context.GetGraphicsPlatform(), gameSettingsAsset.DefaultGraphicsProfile, gameSettingsAsset.TextureQuality, colorSpace);
                 result.BuildSteps.Add(new SpriteSheetCommand(urlInStorage, parameters));                
             }
         }
@@ -226,6 +228,7 @@ namespace SiliconStudio.Paradox.Assets.Sprite
 
                     var sprites = AssetParameters.SheetAsset.Sprites;
                     var packingParameters = AssetParameters.SheetAsset.Packing;
+                    bool isSRgb = AssetParameters.SheetAsset.ColorSpace.ToColorSpace(AssetParameters.ColorSpace, TextureHint.Color) == ColorSpace.Linear;
 
                     for (var i = 0; i < sprites.Count; ++i)
                     {
@@ -238,7 +241,7 @@ namespace SiliconStudio.Paradox.Assets.Sprite
 
                         if (!imageDictionary.ContainsKey(sprite.Source))
                         {
-                            texture = LoadImage(texTool, new UFile(sprite.Source), AssetParameters.SheetAsset.SRgb);
+                            texture = LoadImage(texTool, new UFile(sprite.Source), isSRgb);
                             imageDictionary[sprite.Source] = texture;
                         }
                         else
@@ -278,8 +281,8 @@ namespace SiliconStudio.Paradox.Assets.Sprite
                         var atlasLayout = texturePacker.AtlasTextureLayouts[textureAtlasIndex];
 
                         ResultStatus resultStatus;
-                        using (var atlasImage = AtlasTextureFactory.CreateTextureAtlas(atlasLayout))
-                        using (var texImage = texTool.Load(atlasImage))
+                        using (var atlasImage = AtlasTextureFactory.CreateTextureAtlas(atlasLayout, isSRgb))
+                        using (var texImage = texTool.Load(atlasImage, isSRgb))
                         {
                             var outputUrl = SpriteSheetAsset.BuildTextureAtlasUrl(Url, textureAtlasIndex);
                             var convertParameters = new TextureHelper.ImportParameters(AssetParameters) { OutputUrl = outputUrl };
@@ -320,7 +323,7 @@ namespace SiliconStudio.Paradox.Assets.Sprite
                 {
                     texTool.Decompress(texImage, isSRgb);
 
-                    if (texImage.Format == PixelFormat.B8G8R8A8_UNorm)
+                    if (texImage.Format == PixelFormat.B8G8R8A8_UNorm || texImage.Format == PixelFormat.B8G8R8A8_UNorm_SRgb)
                         texTool.SwitchChannel(texImage);
 
                     return texTool.ConvertToParadoxImage(texImage);
@@ -377,7 +380,7 @@ namespace SiliconStudio.Paradox.Assets.Sprite
             }
 
             public SpriteSheetParameters(SpriteSheetAsset sheetAsset, Dictionary<SpriteInfo, string> imageToTextureUrl, 
-                PlatformType platform, GraphicsPlatform graphicsPlatform, GraphicsProfile graphicsProfile, TextureQuality textureQuality)
+                PlatformType platform, GraphicsPlatform graphicsPlatform, GraphicsProfile graphicsProfile, TextureQuality textureQuality, ColorSpace colorSpace)
             {
                 ImageToTextureUrl = imageToTextureUrl;
                 SheetAsset = sheetAsset;
@@ -385,6 +388,7 @@ namespace SiliconStudio.Paradox.Assets.Sprite
                 GraphicsPlatform = graphicsPlatform;
                 GraphicsProfile = graphicsProfile;
                 TextureQuality = textureQuality;
+                ColorSpace = colorSpace;
             }
 
             public SpriteSheetAsset SheetAsset;
@@ -396,6 +400,8 @@ namespace SiliconStudio.Paradox.Assets.Sprite
             public GraphicsProfile GraphicsProfile;
 
             public TextureQuality TextureQuality;
+
+            public ColorSpace ColorSpace;
 
             public Dictionary<SpriteInfo, string> ImageToTextureUrl { get; set; }
         } 

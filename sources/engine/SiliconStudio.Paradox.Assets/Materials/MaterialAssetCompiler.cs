@@ -8,6 +8,7 @@ using SiliconStudio.BuildEngine;
 using SiliconStudio.Core.IO;
 using SiliconStudio.Core.Serialization;
 using SiliconStudio.Core.Serialization.Assets;
+using SiliconStudio.Paradox.Graphics;
 using SiliconStudio.Paradox.Rendering.Materials;
 
 namespace SiliconStudio.Paradox.Assets.Materials
@@ -26,6 +27,8 @@ namespace SiliconStudio.Paradox.Assets.Materials
 
             private readonly Package package;
 
+            private ColorSpace colorSpace;
+
             private UFile assetUrl;
 
             public MaterialCompileCommand(string url, AssetItem assetItem, MaterialAsset value, AssetCompilerContext context)
@@ -33,6 +36,7 @@ namespace SiliconStudio.Paradox.Assets.Materials
             {
                 this.assetItem = assetItem;
                 package = context.Package;
+                colorSpace = context.GetColorSpace();
                 assetUrl = new UFile(url);
             }
 
@@ -52,6 +56,9 @@ namespace SiliconStudio.Paradox.Assets.Materials
                 base.ComputeParameterHash(writer);
                 writer.Serialize(ref assetUrl, ArchiveMode.Serialize);
 
+                // Write the 
+                writer.Write(colorSpace);
+                
                 // We also want to serialize recursively the compile-time dependent assets
                 // (since they are not added as reference but actually embedded as part of the current asset)
                 // TODO: Ideally we would want to put that automatically in AssetCommand<>, but we would need access to package
@@ -87,8 +94,13 @@ namespace SiliconStudio.Paradox.Assets.Materials
                 //    }
                 //}
 
+                // Check with Ben why DoCommandOverride is called without going through the constructor?
                 var assetManager = new AssetManager();
-                var materialContext = new MaterialGeneratorContext() { Assets = assetManager };
+                var materialContext = new MaterialGeneratorContext
+                {
+                    Assets = assetManager,
+                    ColorSpace = colorSpace
+                };
                 materialContext.AddLoadingFromSession(package);
 
                 var materialClone = (MaterialAsset)AssetCloner.Clone(AssetParameters);

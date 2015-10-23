@@ -14,7 +14,7 @@ namespace SiliconStudio.Paradox.Rendering.Images
         // Exposure
         float KeyValue = 0.18f;
         bool  AutoKeyValue = false;
-        float LuminanceLocalFactor = 0.5f;
+        float LuminanceLocalFactor = 0.0f;
         float LuminanceAverageGlobal;
 
         // Color/Gamma correction
@@ -53,7 +53,7 @@ namespace SiliconStudio.Paradox.Rendering.Images
             // Apply ToneMapping
 	        color = ToneMap(color, avgLuminance);
 
-	        return float4(color, 1.0);
+	        return float4(color, inputColor.a);
         }
 
         float CalculateExposure(float avgLuminance)

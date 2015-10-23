@@ -5,5 +5,3 @@
 // To generate it yourself, please install SiliconStudio.Paradox.VisualStudio.Package .vsix
 // and re-save the associated .pdxfx.
 // </auto-generated>
-
-// Nothing to generate

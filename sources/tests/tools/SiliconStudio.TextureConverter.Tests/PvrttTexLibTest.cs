@@ -33,7 +33,7 @@ namespace SiliconStudio.TextureConverter.Tests
             TexImage image = new TexImage();
 
             var dxtLib = new DxtTexLib();
-            dxtLib.Execute(image, new LoadingRequest(TestTools.InputTestFolder + file, false));
+            dxtLib.Execute(image, new LoadingRequest(Module.PathToInputImages + file, false));
             image.CurrentLibrary = dxtLib;
             dxtLib.EndLibrary(image);
 
@@ -43,7 +43,7 @@ namespace SiliconStudio.TextureConverter.Tests
         }
 
 
-        [Test]
+        [Test, Ignore]
         public void CanHandleRequestTest()
         {
             TexImage image = TestTools.Load(library, "TextureArray_WMipMaps_PVRTC2_4bpp.pvr");

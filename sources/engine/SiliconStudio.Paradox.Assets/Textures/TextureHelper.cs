@@ -59,7 +59,11 @@ namespace SiliconStudio.Paradox.Assets.Textures
             public ImportParameters(TextureConvertParameters textureParameters)
             {
                 var asset = textureParameters.Texture;
-                IsSRgb = asset.SRgb;
+
+                // Compute SRgb usage
+                // If Texture is in auto mode, use the global settings, else use the settings overridden by the texture asset. 
+                IsSRgb = textureParameters.Texture.ColorSpace.ToColorSpace(textureParameters.ColorSpace, asset.Hint) == ColorSpace.Linear;
+
                 DesiredSize = new Size2((int)asset.Width, (int)asset.Height);
                 IsSizeInPercentage = asset.IsSizeInPercentage;
                 DesiredFormat = asset.Format;
@@ -78,7 +82,11 @@ namespace SiliconStudio.Paradox.Assets.Textures
             public ImportParameters(SpriteSheetAssetCompiler.SpriteSheetParameters spriteSheetParameters)
             {
                 var asset = spriteSheetParameters.SheetAsset;
-                IsSRgb = asset.SRgb;
+
+                // Compute SRgb usage
+                // If Texture is in auto mode, use the global settings, else use the settings overridden by the texture asset. 
+                IsSRgb = asset.ColorSpace.ToColorSpace(spriteSheetParameters.ColorSpace, TextureHint.Color) == ColorSpace.Linear;
+
                 DesiredSize = new Size2(100, 100);
                 IsSizeInPercentage = true;
                 DesiredFormat = asset.Format;
@@ -176,9 +184,6 @@ namespace SiliconStudio.Paradox.Assets.Textures
         /// <returns>The pixel format to use as output</returns>
         public static PixelFormat DetermineOutputFormat(ImportParameters parameters, Int2 imageSize, PixelFormat inputImageFormat, int alphaDepth)
         {
-            if (parameters.IsSRgb && ((int)parameters.GraphicsProfile < (int)GraphicsProfile.Level_9_2 && parameters.GraphicsPlatform != GraphicsPlatform.Direct3D11))
-                throw new NotSupportedException("sRGB is not supported on OpenGl profile level {0}".ToFormat(parameters.GraphicsProfile));
-
             var hint = parameters.TextureHint;
 
             var alphaMode = parameters.DesiredAlpha;
@@ -210,10 +215,6 @@ namespace SiliconStudio.Paradox.Assets.Textures
                             {
                                 outputFormat = inputImageFormat;
                             }
-                            else if (parameters.IsSRgb)
-                            {
-                                outputFormat = PixelFormat.R8G8B8A8_UNorm_SRgb;
-                            }
                             else
                             {
                                 switch (parameters.GraphicsProfile)
@@ -221,7 +222,7 @@ namespace SiliconStudio.Paradox.Assets.Textures
                                     case GraphicsProfile.Level_9_1:
                                     case GraphicsProfile.Level_9_2:
                                     case GraphicsProfile.Level_9_3:
-                                        outputFormat = alphaMode == AlphaFormat.None ? PixelFormat.ETC1 : PixelFormat.R8G8B8A8_UNorm;
+                                        outputFormat = alphaMode == AlphaFormat.None && !parameters.IsSRgb ? PixelFormat.ETC1 : parameters.IsSRgb ? PixelFormat.R8G8B8A8_UNorm_SRgb : PixelFormat.R8G8B8A8_UNorm;
                                         break;
                                     case GraphicsProfile.Level_10_0:
                                     case GraphicsProfile.Level_10_1:
@@ -229,7 +230,7 @@ namespace SiliconStudio.Paradox.Assets.Textures
                                     case GraphicsProfile.Level_11_1:
                                     case GraphicsProfile.Level_11_2:
                                         // GLES3.0 starting from Level_10_0, this profile enables ETC2 compression on Android
-                                        outputFormat = alphaMode == AlphaFormat.None ? PixelFormat.ETC1 : PixelFormat.ETC2_RGBA;
+                                        outputFormat = alphaMode == AlphaFormat.None && !parameters.IsSRgb ? PixelFormat.ETC1 : parameters.IsSRgb ? PixelFormat.ETC2_RGBA_SRgb : PixelFormat.ETC2_RGBA;
                                         break;
                                     default:
                                         throw new ArgumentOutOfRangeException("GraphicsProfile");
@@ -242,28 +243,23 @@ namespace SiliconStudio.Paradox.Assets.Textures
                             {
                                 outputFormat = inputImageFormat;
                             }
-                            else if (parameters.IsSRgb)
-                            {
-                                outputFormat = PixelFormat.R8G8B8A8_UNorm_SRgb;
-                            }
                             else if (SupportPVRTC(imageSize))
                             {
                                 switch (alphaMode)
                                 {
                                     case AlphaFormat.None:
-                                        // DXT1 handles 1-bit alpha channel
-                                        outputFormat = PixelFormat.PVRTC_4bpp_RGB;
+                                        outputFormat = parameters.IsSRgb ? PixelFormat.PVRTC_4bpp_RGB_SRgb : PixelFormat.PVRTC_4bpp_RGB;
                                         break;
                                     case AlphaFormat.Mask:
                                         // DXT1 handles 1-bit alpha channel
                                         // TODO: Not sure about the equivalent here?
-                                        outputFormat = PixelFormat.PVRTC_4bpp_RGBA;
+                                        outputFormat = parameters.IsSRgb ? PixelFormat.PVRTC_4bpp_RGBA_SRgb : PixelFormat.PVRTC_4bpp_RGBA;
                                         break;
                                     case AlphaFormat.Explicit:
                                     case AlphaFormat.Interpolated:
                                         // DXT3 is good at sharp alpha transitions
                                         // TODO: Not sure about the equivalent here?
-                                        outputFormat = PixelFormat.PVRTC_4bpp_RGBA;
+                                        outputFormat = parameters.IsSRgb ? PixelFormat.PVRTC_4bpp_RGBA_SRgb : PixelFormat.PVRTC_4bpp_RGBA;
                                         break;
                                     default:
                                         throw new ArgumentOutOfRangeException();
@@ -271,7 +267,7 @@ namespace SiliconStudio.Paradox.Assets.Textures
                             }
                             else
                             {
-                                outputFormat = PixelFormat.R8G8B8A8_UNorm;
+                                outputFormat = parameters.IsSRgb ? PixelFormat.R8G8B8A8_UNorm_SRgb : PixelFormat.R8G8B8A8_UNorm;
                             }
                             break;
                         case PlatformType.Windows:
@@ -451,9 +447,8 @@ namespace SiliconStudio.Paradox.Assets.Textures
             if (cancellationToken.IsCancellationRequested) // abort the process if cancellation is demanded
                 return ResultStatus.Cancelled;
 
-
-            // Pre-multiply alpha
-            if (parameters.PremultiplyAlpha)
+            // Pre-multiply alpha only for relevant formats 
+            if (parameters.PremultiplyAlpha && texImage.Format.HasAlpha32Bits())
                 textureTool.PreMultiplyAlpha(texImage);
 
             if (cancellationToken.IsCancellationRequested) // abort the process if cancellation is demanded
@@ -491,6 +486,25 @@ namespace SiliconStudio.Paradox.Assets.Textures
             }
 
             return ResultStatus.Successful;
+        }
+
+        /// <summary>
+        /// Find the region of the sprite specified by the provided pixel coordinate in a texture.
+        /// </summary>
+        /// <param name="filePath">The full path to the texture</param>
+        /// <param name="pixelCoordinates">A pixel of the sprite</param>
+        /// <param name="transparencyColor">The transparency color of the texture</param>
+        /// <returns></returns>
+        public static Rectangle FindSpriteRegion(string filePath, Int2 pixelCoordinates, Color? transparencyColor)
+        {
+            using (var tool = new TextureTool())
+            using (var image = tool.Load(filePath, false))
+            {
+                tool.Decompress(image, false);
+
+                var mask = transparencyColor.HasValue ? 0xffffffff: 0xff000000;
+                return tool.FindSpriteRegion(image, pixelCoordinates, transparencyColor, mask);
+            }
         }
     }
 }
